@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080a0c">
+<title>LOG STATS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#080a0c;color:#e2dfd8;font-family:'Outfit',sans-serif;font-size:15px;-webkit-font-smoothing:antialiased;overflow:hidden}
+:root{
+  --bg:#080a0c;--s1:#0d1117;--s2:#141820;--s3:#1c2232;
+  --b1:#1e2430;--b2:#2a3040;
+  --t1:#e2dfd8;--t2:#8a8a8a;--t3:#4a4a4a;
+  --accent:#c8925a;--teal:#5a9e8f;--purple:#8b7ec8;
+  --red:#c75858;--green:#6aad7e;--yellow:#d4b44a;
+}
+
+/* LOADING */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:100}
+.app-logo{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:300;letter-spacing:10px;color:var(--t1)}
+.loading-bar{width:120px;height:1px;background:var(--b1);overflow:hidden}
+.loading-bar-inner{height:100%;background:var(--accent);animation:load 1.4s ease-in-out infinite}
+@keyframes load{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+
+/* APP LAYOUT */
+#app{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+#app.hidden{display:none}
+
+/* HEADER */
+.header{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;border-bottom:0.5px solid var(--b1);flex-shrink:0;background:var(--bg)}
+.header-title{font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:400;letter-spacing:5px;color:var(--t1)}
+.icon-btn{width:32px;height:32px;border:0.5px solid var(--b2);border-radius:50%;background:transparent;color:var(--t2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;transition:all 0.15s;-webkit-tap-highlight-color:transparent}
+.icon-btn:active{transform:scale(0.9)}
+.icon-btn.syncing{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* CONTENT */
+.content{flex:1;overflow:hidden;position:relative}
+.tab-pane{position:absolute;inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;opacity:0;pointer-events:none;transform:translateY(6px);transition:opacity 0.2s,transform 0.2s;scrollbar-width:none}
+.tab-pane::-webkit-scrollbar{display:none}
+.tab-pane.active{opacity:1;pointer-events:all;transform:translateY(0)}
+
+/* BOTTOM NAV */
+.nav{display:flex;height:56px;border-top:0.5px solid var(--b1);background:var(--bg);flex-shrink:0}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:none;border:none;color:var(--t3);cursor:pointer;transition:color 0.15s;-webkit-tap-highlight-color:transparent;padding:0}
+.nav-btn.active{color:var(--accent)}
+.nav-icon{font-size:17px}
+.nav-label{font-size:10px;letter-spacing:1.5px;font-weight:500;text-transform:uppercase}
+
+/* LOG TAB */
+.log-container{padding:32px 24px 48px;display:flex;flex-direction:column;gap:30px}
+.log-date{text-align:center}
+.log-date-day{font-family:'Cormorant Garamond',serif;font-size:60px;font-weight:300;line-height:1;color:var(--t1)}
+.log-date-rest{font-size:11px;color:var(--t2);letter-spacing:3px;text-transform:uppercase;margin-top:6px}
+.log-label{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;color:var(--t3);margin-bottom:12px}
+.weight-input-wrapper{display:flex;align-items:center;justify-content:center;gap:10px}
+.weight-adjust{width:40px;height:40px;border:0.5px solid var(--b2);border-radius:50%;background:transparent;color:var(--t1);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;transition:all 0.1s;line-height:1}
+.weight-adjust:active{transform:scale(0.88);background:var(--s2)}
+.weight-input{font-family:'Space Mono',monospace;font-size:46px;font-weight:400;color:var(--t1);background:transparent;border:none;border-bottom:1px solid var(--b2);text-align:center;width:148px;outline:none;padding-bottom:4px;-moz-appearance:textfield}
+.weight-input::-webkit-outer-spin-button,.weight-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.weight-unit{font-size:12px;color:var(--t3);margin-top:6px;letter-spacing:2px;text-align:center}
+.mood-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mood-option{padding:13px 10px;border:0.5px solid var(--b1);border-radius:10px;cursor:pointer;transition:all 0.15s;text-align:center;-webkit-tap-highlight-color:transparent}
+.mood-option:last-child{grid-column:1/-1}
+.mood-option.selected{border-color:var(--accent);background:rgba(200,146,90,0.08)}
+.mood-emoji{font-size:22px;display:block;margin-bottom:5px}
+.mood-text{font-size:11px;color:var(--t2)}
+.mood-option.selected .mood-text{color:var(--accent)}
+.workout-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.workout-option{padding:13px 8px;border:0.5px solid var(--b1);border-radius:10px;cursor:pointer;text-align:center;transition:all 0.15s;-webkit-tap-highlight-color:transparent}
+.workout-option.selected{border-color:var(--teal);background:rgba(90,158,143,0.08)}
+.workout-icon{font-size:22px;display:block;margin-bottom:5px}
+.workout-text{font-size:11px;color:var(--t2)}
+.workout-option.selected .workout-text{color:var(--teal)}
+.submit-btn{width:100%;padding:16px;background:var(--accent);color:#1a0f07;border:none;border-radius:10px;font-family:'Outfit',sans-serif;font-size:13px;font-weight:600;letter-spacing:3px;text-transform:uppercase;cursor:pointer;transition:opacity 0.15s,transform 0.1s;-webkit-tap-highlight-color:transparent}
+.submit-btn:active{transform:scale(0.98);opacity:0.9}
+.submit-btn:disabled{opacity:0.4;cursor:not-allowed}
+.warn-box{padding:13px 15px;background:rgba(200,146,90,0.07);border:0.5px solid rgba(200,146,90,0.25);border-radius:8px;font-size:12px;color:var(--accent);line-height:1.7}
+
+/* HISTORY TAB */
+.history-container{padding:0 0 40px}
+.history-header{padding:14px 20px 12px;position:sticky;top:0;background:var(--bg);z-index:10;border-bottom:0.5px solid var(--b1)}
+.history-search{width:100%;padding:10px 14px;background:var(--s1);border:0.5px solid var(--b1);border-radius:8px;color:var(--t1);font-family:'Outfit',sans-serif;font-size:14px;outline:none}
+.history-search::placeholder{color:var(--t3)}
+.history-row{display:grid;grid-template-columns:68px 1fr 52px 24px;align-items:center;gap:10px;padding:12px 20px;border-bottom:0.5px solid var(--b1);transition:background 0.1s;-webkit-tap-highlight-color:transparent}
+.history-row:active{background:var(--s1)}
+.h-date{font-family:'Space Mono',monospace;font-size:11px;color:var(--t2)}
+.h-mood-wrap{display:flex;align-items:center;gap:7px;min-width:0}
+.h-mood-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.h-mood-text{font-size:12px;color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-weight{font-family:'Space Mono',monospace;font-size:14px;color:var(--t1);text-align:right}
+.h-weight-empty{color:var(--t3)}
+.h-workout{font-size:15px;text-align:right;color:var(--t2)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--t3);font-size:13px;line-height:2.5}
+
+/* ANALYTICS TAB */
+.analytics-container{padding:0 0 60px}
+.a-section{padding:22px 20px 18px;border-bottom:0.5px solid var(--b1)}
+.a-section:last-child{border-bottom:none}
+.a-section-title{font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--t3);margin-bottom:16px}
+
+/* Stat cards */
+.stat-strip{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat-card{background:var(--s1);border:0.5px solid var(--b1);border-radius:10px;padding:14px}
+.stat-label{font-size:10px;letter-spacing:1.5px;text-transform:uppercase;color:var(--t3);margin-bottom:5px}
+.stat-value{font-family:'Space Mono',monospace;font-size:22px;color:var(--t1);line-height:1.2}
+.stat-sub{font-size:11px;color:var(--t3);margin-top:3px}
+.stat-accent{color:var(--accent)}
+.stat-teal{color:var(--teal)}
+.stat-green{color:var(--green)}
+.stat-yellow{color:var(--yellow)}
+
+/* Chart toggles */
+.chart-toggle{display:flex;gap:4px;margin-bottom:14px}
+.toggle-btn{padding:5px 11px;font-size:11px;font-family:'Space Mono',monospace;letter-spacing:1px;border:0.5px solid var(--b1);border-radius:4px;background:transparent;color:var(--t3);cursor:pointer;transition:all 0.1s;-webkit-tap-highlight-color:transparent}
+.toggle-btn.active{background:var(--s2);color:var(--t1);border-color:var(--b2)}
+.chart-wrap{position:relative;width:100%}
+
+/* Correlation cards */
+.corr-list{display:flex;flex-direction:column;gap:12px}
+.corr-card{background:var(--s1);border:0.5px solid var(--b1);border-radius:10px;padding:15px}
+.corr-title{font-size:12px;color:var(--t2);margin-bottom:12px}
+.corr-bar-wrap{position:relative;height:3px;background:var(--b1);border-radius:2px;margin-bottom:10px}
+.corr-bar-center{position:absolute;left:50%;top:-2px;width:1px;height:7px;background:var(--b2)}
+.corr-bar-fill{position:absolute;top:0;height:100%;border-radius:2px}
+.corr-bottom{display:flex;justify-content:space-between;align-items:baseline}
+.corr-value{font-family:'Space Mono',monospace;font-size:20px}
+.corr-strength{font-size:11px;color:var(--t2)}
+.corr-interp{font-size:12px;color:var(--t3);margin-top:7px;line-height:1.6}
+
+/* Mood dist */
+.mood-dist-grid{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:center}
+.mood-dist-stats{display:flex;flex-direction:column;gap:9px}
+.mood-dist-row{display:flex;align-items:center;gap:8px}
+.mood-dist-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.mood-dist-info{flex:1}
+.mood-dist-name{font-size:11px;color:var(--t2)}
+.mood-dist-pct{font-family:'Space Mono',monospace;font-size:12px;color:var(--t1)}
+
+/* Projection note */
+.proj-note{font-size:12px;color:var(--t3);margin-top:12px;line-height:1.7}
+.proj-trend{display:inline-flex;align-items:center;gap:4px}
+
+/* Legend */
+.chart-legend{display:flex;gap:14px;margin-top:10px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--t2)}
+.legend-dot{width:10px;height:3px;border-radius:2px}
+
+/* Toast */
+#toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(14px);background:var(--s3);color:var(--t1);padding:10px 20px;border-radius:24px;font-size:13px;opacity:0;transition:all 0.22s;pointer-events:none;z-index:200;white-space:nowrap;border:0.5px solid var(--b2)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="app-logo">LOG STATS</div>
+  <div class="loading-bar"><div class="loading-bar-inner"></div></div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+
+  <div class="header">
+    <div class="header-title">LOG STATS</div>
+    <button class="icon-btn" id="syncBtn" onclick="syncData()" title="Sync">↻</button>
+  </div>
+
+  <div class="content">
+
+    <!-- LOG -->
+    <div class="tab-pane active" id="tab-log">
+      <div class="log-container">
+        <div class="log-date">
+          <div class="log-date-day" id="logDay"></div>
+          <div class="log-date-rest" id="logDateRest"></div>
+        </div>
+        <div>
+          <div class="log-label">Weight (kg)</div>
+          <div class="weight-input-wrapper">
+            <button class="weight-adjust" onclick="adjustWeight(-0.1)">−</button>
+            <div style="text-align:center">
+              <input type="number" class="weight-input" id="weightInput" step="0.05" placeholder="––.–">
+              <div class="weight-unit">kilograms</div>
+            </div>
+            <button class="weight-adjust" onclick="adjustWeight(0.1)">+</button>
+          </div>
+        </div>
+        <div>
+          <div class="log-label">Mood</div>
+          <div class="mood-grid" id="moodGrid"></div>
+        </div>
+        <div>
+          <div class="log-label">Workout</div>
+          <div class="workout-options" id="workoutOptions"></div>
+        </div>
+        <div id="warnBox" style="display:none" class="warn-box">
+          ⚠ Apps Script URL not configured — entries won't save to Google Sheets.<br>
+          See setup instructions at the bottom of this file.
+        </div>
+        <button class="submit-btn" id="submitBtn" onclick="submitEntry()">SAVE ENTRY</button>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div class="tab-pane" id="tab-history">
+      <div class="history-container">
+        <div class="history-header">
+          <input type="text" class="history-search" id="historySearch" placeholder="Filter by mood, date, workout…" oninput="renderHistory()">
+        </div>
+        <div id="historyList"></div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS -->
+    <div class="tab-pane" id="tab-analytics">
+      <div class="analytics-container" id="analyticsContainer">
+        <div class="empty-state">Loading analytics…</div>
+      </div>
+    </div>
+
+  </div>
+
+  <nav class="nav">
+    <button class="nav-btn active" onclick="switchTab('log',this)">
+      <span class="nav-icon">✦</span>
+      <span class="nav-label">Log</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('history',this)">
+      <span class="nav-icon">≡</span>
+      <span class="nav-label">History</span>
+    </button>
+    <button class="nav-btn" onclick="switchTab('analytics',this)">
+      <span class="nav-icon">◈</span>
+      <span class="nav-label">Analytics</span>
+    </button>
+  </nav>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ================================================================
+// ★ CONFIG — FILL THESE IN BEFORE USING
+// ================================================================
+const CONFIG = {
+  SHEET_ID: '1QNe5MDX9PFFimNtuyoz46EhwWzT_vbx6N6sIZoTp3aI',
+  API_KEY: 'AIzaSyBlm5RMslEwYbeps-WgbQd5oPOaY-Gt9GQ',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby6P_LFxRdr5n2xDVW5_8HdJCjtBzK1P7-WV1l82pqTgm5e_p7nfyBYxUHYgSrrYaxd7w/exec', // paste Apps Script URL here for saving entries
+};
+// ================================================================
+
+const MOODS = [
+  { key:'Awful',               emoji:'😞', score:1, color:'#c75858', short:'Awful' },
+  { key:'Bad/Problematic/Zero Day', emoji:'😔', score:2, color:'#e07a5f', short:'Bad Day' },
+  { key:'Average/Alright',     emoji:'😐', score:3, color:'#d4b44a', short:'Average' },
+  { key:'Good/Calm/Productive',emoji:'😊', score:4, color:'#6aad7e', short:'Good' },
+  { key:'Energetic/Great',     emoji:'🔥', score:5, color:'#5a9e8f', short:'Energetic' },
+];
+const WORKOUTS = [
+  { key:'No',         icon:'—', label:'Rest',  score:0, done:0 },
+  { key:'Yes (Light)',icon:'◎', label:'Light', score:1, done:1 },
+  { key:'Yes (Great)',icon:'●', label:'Great', score:2, done:1 },
+];
+const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+let allData = [];
+let charts = {};
+let selectedMood = null;
+let selectedWorkout = null;
+let analyticsReady = false;
+let weightRange = 'all';
+
+// ================================================================
+// UTILS
+// ================================================================
+function parseDate(s) {
+  if (!s) return null;
+  s = s.toString().trim();
+  const m = s.match(/^(\d{1,2})-([A-Za-z]{3})$/);
+  if (m) {
+    const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    const day = parseInt(m[1]), month = months[m[2]];
+    if (!isNaN(day) && month !== undefined) return new Date(2026, month, day);
+  }
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+function fmtDate(d) { return d ? `${d.getDate()} ${MN[d.getMonth()]}` : ''; }
+function moodColor(k) { return (MOODS.find(m=>m.key===k)||{color:'#555'}).color; }
+function moodScore(k) { return (MOODS.find(m=>m.key===k)||{score:null}).score; }
+function moodShort(k) { return (MOODS.find(m=>m.key===k)||{short:k}).short; }
+function avg(arr) { const f=arr.filter(v=>v!=null&&!isNaN(v)); return f.length?f.reduce((a,b)=>a+b,0)/f.length:null; }
+
+function pearson(x,y) {
+  const n=x.length; if(n<3) return null;
+  const mx=avg(x), my=avg(y);
+  let num=0,dx=0,dy=0;
+  for(let i=0;i<n;i++){num+=(x[i]-mx)*(y[i]-my);dx+=(x[i]-mx)**2;dy+=(y[i]-my)**2;}
+  const den=Math.sqrt(dx*dy);
+  return den===0?0:num/den;
+}
+
+function linReg(ys) {
+  const n=ys.length; if(n<2) return {slope:0,intercept:ys[0]||0};
+  const mx=(n-1)/2, my=avg(ys);
+  let num=0,den=0;
+  for(let i=0;i<n;i++){num+=(i-mx)*(ys[i]-my);den+=(i-mx)**2;}
+  const slope=den===0?0:num/den;
+  return {slope, intercept:my-slope*mx};
+}
+
+function corrStrength(r) {
+  if(r===null) return {label:'N/A',color:'#555'};
+  const a=Math.abs(r);
+  if(a<0.1) return {label:'None',color:'#4a4a4a'};
+  if(a<0.3) return {label:'Weak',color:'#6a6a6a'};
+  if(a<0.5) return {label:'Moderate',color:'#d4b44a'};
+  if(a<0.7) return {label:'Strong',color:'#c8925a'};
+  return {label:'Very strong',color:'#e07a5f'};
+}
+
+function corrInterpret(r,v1,v2) {
+  if(r===null||Math.abs(r)<0.08) return `No meaningful relationship detected.`;
+  const strength=Math.abs(r)<0.3?'weakly':Math.abs(r)<0.5?'moderately':'strongly';
+  const dir=r>0?'move together':'move in opposite directions';
+  return `${v1} and ${v2} ${strength} tend to ${dir} (r = ${r.toFixed(2)}).`;
+}
+
+function toast(msg,ms=2500) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),ms);
+}
+
+function killChart(k) { if(charts[k]){charts[k].destroy();charts[k]=null;} }
+
+const gridColor='#1a2030';
+const tickFont={family:'Space Mono',size:10};
+const baseScales={
+  x:{grid:{color:gridColor,drawBorder:false},ticks:{color:'#3a3a3a',font:tickFont,maxRotation:0}},
+  y:{grid:{color:gridColor,drawBorder:false},ticks:{color:'#3a3a3a',font:tickFont}}
+};
+
+// ================================================================
+// DATA
+// ================================================================
+async function loadData() {
+  try {
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SHEET_ID}/values/2026!A2:G300?key=${CONFIG.API_KEY}`;
+    const res=await fetch(url);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j=await res.json();
+    allData=(j.values||[])
+      .map(r=>({
+        dateStr:r[0]||'', date:parseDate(r[0]),
+        weight:parseFloat(r[1])||null,
+        mood:r[2]||'', workout:r[3]||'',
+        moodScore:parseFloat(r[4])||moodScore(r[2]),
+        workoutScore:parseFloat(r[5])||0,
+        workoutDone:parseFloat(r[6])||0,
+      }))
+      .filter(r=>r.date)
+      .sort((a,b)=>a.date-b.date);
+    localStorage.setItem('ls_cache',JSON.stringify(allData.map(r=>({...r,date:r.date.toISOString()}))));
+    return true;
+  } catch(e) {
+    console.warn('Fetch failed:',e);
+    const c=localStorage.getItem('ls_cache');
+    if(c){try{allData=JSON.parse(c).map(r=>({...r,date:new Date(r.date)}));return true;}catch{}}
+    return false;
+  }
+}
+
+async function syncData() {
+  const btn=document.getElementById('syncBtn');
+  btn.classList.add('syncing');
+  const ok=await loadData();
+  btn.classList.remove('syncing');
+  if(ok){
+    renderHistory();
+    if(analyticsReady){analyticsReady=false;buildAnalytics();}
+    toast('✓ Synced');
+  } else {
+    toast('⚠ Using cached data — check API key');
+  }
+}
+
+// ================================================================
+// LOG TAB
+// ================================================================
+function initLog() {
+  const now=new Date();
+  document.getElementById('logDay').textContent=now.getDate();
+  document.getElementById('logDateRest').textContent=`${MN[now.getMonth()].toUpperCase()} ${now.getFullYear()} · ${DAYS[now.getDay()]}`;
+
+  document.getElementById('moodGrid').innerHTML=MOODS.map(m=>`
+    <div class="mood-option" id="m_${m.score}" onclick="pickMood('${m.key}',${m.score})">
+      <span class="mood-emoji">${m.emoji}</span>
+      <span class="mood-text">${m.short}</span>
+    </div>
+  `).join('');
+  const last=MOODS[MOODS.length-1];
+  // Last mood card spans full width (already via CSS .mood-option:last-child)
+
+  document.getElementById('workoutOptions').innerHTML=WORKOUTS.map(w=>`
+    <div class="workout-option" id="w_${w.score}" onclick="pickWorkout('${w.key}',${w.score})">
+      <span class="workout-icon">${w.icon}</span>
+      <span class="workout-text">${w.label}</span>
+    </div>
+  `).join('');
+
+  // Pre-fill last recorded weight
+  const lw=[...allData].reverse().find(r=>r.weight);
+  if(lw) document.getElementById('weightInput').value=lw.weight.toFixed(2);
+
+  if(!CONFIG.SCRIPT_URL) document.getElementById('warnBox').style.display='block';
+}
+
+function pickMood(key,score) {
+  selectedMood=key;
+  document.querySelectorAll('.mood-option').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('m_'+score)?.classList.add('selected');
+}
+
+function pickWorkout(key,score) {
+  selectedWorkout=key;
+  document.querySelectorAll('.workout-option').forEach(el=>el.classList.remove('selected'));
+  document.getElementById('w_'+score)?.classList.add('selected');
+}
+
+function adjustWeight(d) {
+  const inp=document.getElementById('weightInput');
+  inp.value=(Math.max(30,Math.min(200,(parseFloat(inp.value)||63)+d))).toFixed(2);
+}
+
+async function submitEntry() {
+  const weight=parseFloat(document.getElementById('weightInput').value)||null;
+  if(!selectedMood){toast('⚠ Select a mood');return;}
+  if(!selectedWorkout){toast('⚠ Select workout status');return;}
+
+  const now=new Date();
+  const entry={
+    date:`${now.getDate()}-${MN[now.getMonth()]}`,
+    weight, mood:selectedMood, workout:selectedWorkout,
+    moodScore:MOODS.find(m=>m.key===selectedMood).score,
+    workoutScore:WORKOUTS.find(w=>w.key===selectedWorkout).score,
+    workoutDone:WORKOUTS.find(w=>w.key===selectedWorkout).done,
+  };
+
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true; btn.textContent='SAVING…';
+
+  if(!CONFIG.SCRIPT_URL) {
+    allData.push({...entry,date:now,dateStr:entry.date});
+    allData.sort((a,b)=>a.date-b.date);
+    toast('✓ Saved locally (no cloud sync)');
+    btn.disabled=false; btn.textContent='SAVE ENTRY';
+    return;
+  }
+
+  try {
+    await fetch(CONFIG.SCRIPT_URL,{method:'POST',mode:'no-cors',body:JSON.stringify(entry)});
+    await syncData();
+    toast('✓ Entry saved to Google Sheets');
+    selectedMood=null; selectedWorkout=null;
+    document.querySelectorAll('.mood-option,.workout-option').forEach(el=>el.classList.remove('selected'));
+  } catch(e) {
+    toast('⚠ Save failed — check connection');
+  }
+  btn.disabled=false; btn.textContent='SAVE ENTRY';
+}
+
+// ================================================================
+// HISTORY TAB
+// ================================================================
+function renderHistory() {
+  const container=document.getElementById('historyList');
+  const q=document.getElementById('historySearch').value.toLowerCase();
+  let data=[...allData].reverse();
+  if(q) data=data.filter(r=>r.mood.toLowerCase().includes(q)||r.dateStr.toLowerCase().includes(q)||(r.workout||'').toLowerCase().includes(q));
+  if(!data.length){container.innerHTML='<div class="empty-state">No entries found</div>';return;}
+  container.innerHTML=data.map(r=>{
+    const wIcon=r.workoutDone?(r.workout==='Yes (Light)'?'◎':'●'):'—';
+    const wCls=r.weight?'':'h-weight-empty';
+    return `<div class="history-row">
+      <span class="h-date">${fmtDate(r.date)}</span>
+      <div class="h-mood-wrap">
+        <div class="h-mood-dot" style="background:${moodColor(r.mood)}"></div>
+        <span class="h-mood-text">${moodShort(r.mood)}</span>
+      </div>
+      <span class="h-weight ${wCls}">${r.weight?r.weight.toFixed(1):'––'}</span>
+      <span class="h-workout">${wIcon}</span>
+    </div>`;
+  }).join('');
+}
+
+// ================================================================
+// ANALYTICS — COMPUTE
+// ================================================================
+function computeStats() {
+  const now=new Date();
+  const som=new Date(now.getFullYear(),now.getMonth(),1);
+  const wk7=new Date(now.getTime()-7*86400000);
+
+  const ww=allData.filter(r=>r.weight);
+  const monthW=ww.filter(r=>r.date>=som);
+  const weekW=ww.filter(r=>r.date>=wk7);
+
+  const avgWMonth=avg(monthW.map(r=>r.weight));
+  const avgWWeek=avg(weekW.map(r=>r.weight));
+  const curW=ww.length?ww[ww.length-1].weight:null;
+  const woMonth=allData.filter(r=>r.date>=som&&r.workoutDone).length;
+
+  // Correlations
+  const wmPairs=allData.filter(r=>r.weight&&r.moodScore);
+  const woPairs=allData.filter(r=>r.weight!=null);
+  const moPairs=allData.filter(r=>r.moodScore);
+
+  const corrWM=pearson(wmPairs.map(r=>r.weight),wmPairs.map(r=>r.moodScore));
+  const corrWO=pearson(woPairs.map(r=>r.weight),woPairs.map(r=>r.workoutDone));
+  const corrMO=pearson(moPairs.map(r=>r.moodScore),moPairs.map(r=>r.workoutDone));
+
+  // Mood distribution
+  const moodCounts={};
+  allData.filter(r=>r.mood).forEach(r=>{moodCounts[r.mood]=(moodCounts[r.mood]||0)+1;});
+
+  // Monthly data
+  const byMonth={};
+  allData.forEach(r=>{
+    const k=MN[r.date.getMonth()];
+    if(!byMonth[k]) byMonth[k]={workouts:0,moodSum:0,moodN:0};
+    if(r.workoutDone) byMonth[k].workouts++;
+    if(r.moodScore){byMonth[k].moodSum+=r.moodScore;byMonth[k].moodN++;}
+  });
+
+  // Projection
+  const weights=ww.map(r=>r.weight);
+  const reg=linReg(weights);
+  const proj7=reg.intercept+reg.slope*(weights.length+6);
+  const proj14=reg.intercept+reg.slope*(weights.length+13);
+
+  // Summary stats
+  const totalWo=allData.filter(r=>r.workoutDone).length;
+  const goodDays=Object.entries(moodCounts).filter(([k])=>k==='Good/Calm/Productive'||k==='Energetic/Great').reduce((s,[,v])=>s+v,0);
+  const totalMoodDays=Object.values(moodCounts).reduce((a,b)=>a+b,0);
+
+  return {
+    curW,avgWMonth,avgWWeek,woMonth,
+    corrWM,corrWO,corrMO,
+    moodCounts,byMonth,
+    reg,proj7,proj14,
+    totalDays:allData.length,totalWo,
+    goodRate:totalMoodDays?Math.round(goodDays/totalMoodDays*100):0,
+    woRate:allData.length?Math.round(totalWo/allData.length*100):0,
+  };
+}
+
+// ================================================================
+// ANALYTICS — BUILD HTML
+// ================================================================
+function buildAnalytics() {
+  if(analyticsReady) return;
+  analyticsReady=true;
+  Object.keys(charts).forEach(k=>killChart(k));
+
+  const s=computeStats();
+  const container=document.getElementById('analyticsContainer');
+
+  container.innerHTML=`
+    ${sectionOverview(s)}
+    ${sectionWeight()}
+    ${sectionMood()}
+    ${sectionActivity()}
+    ${sectionMoodDist(s)}
+    ${sectionCorrelations(s)}
+    ${sectionProjection(s)}
+    ${sectionSummary(s)}
+  `;
+
+  requestAnimationFrame(()=>{
+    chartWeight('all');
+    chartMood();
+    chartActivity();
+    chartMoodPie(s);
+    chartProjection(s);
+  });
+}
+
+function sectionOverview(s) {
+  const cw=s.curW?s.curW.toFixed(1):'––';
+  const ww=s.avgWWeek?s.avgWWeek.toFixed(1):'––';
+  const wm=s.avgWMonth?s.avgWMonth.toFixed(1):'––';
+  return `<div class="a-section">
+    <div class="a-section-title">Overview</div>
+    <div class="stat-strip">
+      <div class="stat-card"><div class="stat-label">Current</div><div class="stat-value stat-accent">${cw}</div><div class="stat-sub">kg today</div></div>
+      <div class="stat-card"><div class="stat-label">7-Day Avg</div><div class="stat-value">${ww}</div><div class="stat-sub">kg</div></div>
+      <div class="stat-card"><div class="stat-label">Month Avg</div><div class="stat-value">${wm}</div><div class="stat-sub">kg</div></div>
+      <div class="stat-card"><div class="stat-label">Workouts</div><div class="stat-value stat-teal">${s.woMonth}</div><div class="stat-sub">this month</div></div>
+    </div>
+  </div>`;
+}
+
+function sectionWeight() {
+  return `<div class="a-section">
+    <div class="a-section-title">Weight Trend</div>
+    <div class="chart-toggle">
+      <button class="toggle-btn" onclick="setWRange('7d',this)">7D</button>
+      <button class="toggle-btn" onclick="setWRange('30d',this)">30D</button>
+      <button class="toggle-btn active" onclick="setWRange('all',this)">ALL</button>
+    </div>
+    <div class="chart-wrap" style="height:200px"><canvas id="weightChart" role="img" aria-label="Weight over time">Weight data</canvas></div>
+  </div>`;
+}
+
+function sectionMood() {
+  return `<div class="a-section">
+    <div class="a-section-title">Mood Journey</div>
+    <div class="chart-wrap" style="height:180px"><canvas id="moodChart" role="img" aria-label="Mood score over time">Mood data</canvas></div>
+  </div>`;
+}
+
+function sectionActivity() {
+  return `<div class="a-section">
+    <div class="a-section-title">Monthly Activity</div>
+    <div class="chart-wrap" style="height:180px"><canvas id="activityChart" role="img" aria-label="Monthly workout count">Activity data</canvas></div>
+  </div>`;
+}
+
+function sectionMoodDist(s) {
+  const entries=Object.entries(s.moodCounts).sort((a,b)=>b[1]-a[1]);
+  const total=entries.reduce((sum,[,c])=>sum+c,0);
+  const rows=entries.map(([mood,count])=>`
+    <div class="mood-dist-row">
+      <div class="mood-dist-dot" style="background:${moodColor(mood)}"></div>
+      <div class="mood-dist-info"><div class="mood-dist-name">${moodShort(mood)}</div></div>
+      <div class="mood-dist-pct">${total?Math.round(count/total*100):0}%</div>
+    </div>
+  `).join('');
+  return `<div class="a-section">
+    <div class="a-section-title">Mood Distribution</div>
+    <div class="mood-dist-grid">
+      <div class="chart-wrap" style="height:150px"><canvas id="moodPieChart" role="img" aria-label="Mood distribution">Mood distribution</canvas></div>
+      <div class="mood-dist-stats">${rows}</div>
+    </div>
+  </div>`;
+}
+
+function sectionCorrelations(s) {
+  const corrs=[
+    {r:s.corrWM, v1:'Weight',  v2:'Mood',    title:'Weight  ↔  Mood'},
+    {r:s.corrMO, v1:'Mood',    v2:'Workout', title:'Mood  ↔  Workout'},
+    {r:s.corrWO, v1:'Weight',  v2:'Workout', title:'Weight  ↔  Workout'},
+  ];
+  const cards=corrs.map(c=>{
+    const str=corrStrength(c.r);
+    const rVal=c.r!==null?c.r.toFixed(2):'N/A';
+    let barLeft=50,barWidth=0,barColor='#555';
+    if(c.r!==null){
+      barWidth=Math.abs(c.r)*50;
+      if(c.r>=0){barLeft=50;barColor=Math.abs(c.r)>0.3?'#6aad7e':'#555';}
+      else{barLeft=(0.5+c.r/2)*100;barColor=Math.abs(c.r)>0.3?'#c75858':'#555';}
+    }
+    return `<div class="corr-card">
+      <div class="corr-title">${c.title}</div>
+      <div class="corr-bar-wrap">
+        <div class="corr-bar-center"></div>
+        <div class="corr-bar-fill" style="left:${barLeft}%;width:${barWidth}%;background:${barColor}"></div>
+      </div>
+      <div class="corr-bottom">
+        <span class="corr-value" style="color:${str.color}">${rVal}</span>
+        <span class="corr-strength" style="color:${str.color}">${str.label}</span>
+      </div>
+      <div class="corr-interp">${corrInterpret(c.r,c.v1,c.v2)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="a-section">
+    <div class="a-section-title">Correlations</div>
+    <div class="corr-list">${cards}</div>
+  </div>`;
+}
+
+function sectionProjection(s) {
+  const p7=s.proj7?s.proj7.toFixed(1):'––';
+  const p14=s.proj14?s.proj14.toFixed(1):'––';
+  const t=s.reg.slope;
+  const tStr=t>0.05?`↑ +${(t*7).toFixed(2)} kg/week`:t<-0.05?`↓ ${(t*7).toFixed(2)} kg/week`:'→ Stable';
+  const tColor=t>0.05?'#e07a5f':t<-0.05?'#6aad7e':'#d4b44a';
+  return `<div class="a-section">
+    <div class="a-section-title">Weight Projection</div>
+    <div class="chart-wrap" style="height:180px"><canvas id="projChart" role="img" aria-label="Weight projection">Projection</canvas></div>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#c8925a"></div>Actual</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8b7ec8;height:2px;border-top:2px dashed #8b7ec8"></div>Projected</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <div class="stat-card" style="flex:1"><div class="stat-label">+7 days</div><div class="stat-value">${p7}</div><div class="stat-sub">kg projected</div></div>
+      <div class="stat-card" style="flex:1"><div class="stat-label">+14 days</div><div class="stat-value">${p14}</div><div class="stat-sub">kg projected</div></div>
+    </div>
+    <div class="proj-note">
+      Current trend: <span style="color:${tColor}">${tStr}</span>. 
+      Based on linear regression across all recorded weights. Assumes habits remain constant.
+    </div>
+  </div>`;
+}
+
+function sectionSummary(s) {
+  return `<div class="a-section">
+    <div class="a-section-title">All-Time Summary</div>
+    <div class="stat-strip">
+      <div class="stat-card"><div class="stat-label">Workout Rate</div><div class="stat-value stat-teal">${s.woRate}%</div><div class="stat-sub">${s.totalWo} of ${s.totalDays} days</div></div>
+      <div class="stat-card"><div class="stat-label">Positive Days</div><div class="stat-value stat-green">${s.goodRate}%</div><div class="stat-sub">good or energetic</div></div>
+    </div>
+  </div>`;
+}
+
+// ================================================================
+// CHARTS
+// ================================================================
+function setWRange(r,btn) {
+  weightRange=r;
+  document.querySelectorAll('.chart-toggle .toggle-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  killChart('weight');
+  chartWeight(r);
+}
+
+function chartWeight(range) {
+  let data=allData.filter(r=>r.weight);
+  if(range==='7d') data=data.slice(-7);
+  else if(range==='30d') data=data.slice(-30);
+  if(!data.length) return;
+
+  const labels=data.map(r=>fmtDate(r.date));
+  const vals=data.map(r=>r.weight);
+  const skip=range==='all'?Math.ceil(labels.length/10):1;
+  const ctx=document.getElementById('weightChart'); if(!ctx) return;
+
+  charts['weight']=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{data:vals,borderColor:'#c8925a',backgroundColor:'rgba(200,146,90,0.05)',borderWidth:1.5,pointRadius:range==='all'?0:3,pointBackgroundColor:'#c8925a',fill:true,tension:0.35}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{...baseScales.x,ticks:{...baseScales.x.ticks,callback:(v,i)=>i%skip===0?labels[i]:''}},
+        y:{...baseScales.y,min:Math.floor(Math.min(...vals)-0.8),max:Math.ceil(Math.max(...vals)+0.8)}
+      }
+    }
+  });
+}
+
+function chartMood() {
+  const data=allData.filter(r=>r.moodScore);
+  if(!data.length) return;
+  const labels=data.map(r=>fmtDate(r.date));
+  const vals=data.map(r=>r.moodScore);
+  const colors=data.map(r=>moodColor(r.mood));
+  const skip=Math.ceil(labels.length/10);
+  const ctx=document.getElementById('moodChart'); if(!ctx) return;
+
+  charts['mood']=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{data:vals,borderColor:'#5a9e8f',backgroundColor:'rgba(90,158,143,0.05)',borderWidth:1.5,pointRadius:2,pointBackgroundColor:colors,pointBorderWidth:0,fill:true,tension:0.35}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{...baseScales.x,ticks:{...baseScales.x.ticks,callback:(v,i)=>i%skip===0?labels[i]:''}},
+        y:{...baseScales.y,min:0.5,max:5.5,ticks:{...baseScales.y.ticks,stepSize:1,callback:v=>['','☁','😔','😐','😊','🔥'][v]||''}}
+      }
+    }
+  });
+}
+
+function chartActivity() {
+  const byM={};
+  allData.forEach(r=>{
+    const k=MN[r.date.getMonth()];
+    if(!byM[k]) byM[k]=0;
+    if(r.workoutDone) byM[k]++;
+  });
+  const labels=Object.keys(byM), vals=Object.values(byM);
+  const ctx=document.getElementById('activityChart'); if(!ctx) return;
+
+  charts['activity']=new Chart(ctx,{
+    type:'bar',
+    data:{labels,datasets:[{data:vals,backgroundColor:vals.map(v=>`rgba(90,158,143,${Math.max(0.2,v/20)})`),borderColor:'#5a9e8f',borderWidth:1,borderRadius:5}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{...baseScales.x},y:{...baseScales.y,beginAtZero:true,ticks:{...baseScales.y.ticks,stepSize:5}}}
+    }
+  });
+}
+
+function chartMoodPie(s) {
+  const entries=Object.entries(s.moodCounts);
+  const ctx=document.getElementById('moodPieChart'); if(!ctx||!entries.length) return;
+  charts['moodPie']=new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels:entries.map(([k])=>moodShort(k)),
+      datasets:[{data:entries.map(([,v])=>v),backgroundColor:entries.map(([k])=>moodColor(k)+'bb'),borderColor:entries.map(([k])=>moodColor(k)),borderWidth:1}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'62%'}
+  });
+}
+
+function chartProjection(s) {
+  const ww=allData.filter(r=>r.weight);
+  if(ww.length<5) return;
+  const last=ww.slice(-25);
+  const reg=linReg(last.map(r=>r.weight));
+
+  const actualLabels=last.map(r=>fmtDate(r.date));
+  const actualVals=last.map(r=>r.weight);
+  const projLabels=[], projVals=[];
+  for(let i=1;i<=14;i++){
+    const d=new Date(last[last.length-1].date.getTime()+i*86400000);
+    projLabels.push(fmtDate(d));
+    projVals.push(+(reg.intercept+reg.slope*(last.length-1+i)).toFixed(2));
+  }
+
+  const allLabels=[...actualLabels,...projLabels];
+  const dActual=[...actualVals,...Array(14).fill(null)];
+  const dProj=[...Array(last.length-1).fill(null),actualVals[actualVals.length-1],...projVals];
+  const skip=Math.ceil(allLabels.length/9);
+
+  const ctx=document.getElementById('projChart'); if(!ctx) return;
+  charts['proj']=new Chart(ctx,{
+    type:'line',
+    data:{labels:allLabels,datasets:[
+      {data:dActual,borderColor:'#c8925a',borderWidth:1.5,pointRadius:0,fill:false,tension:0.3,spanGaps:false},
+      {data:dProj,borderColor:'#8b7ec8',borderDash:[5,4],borderWidth:1.5,pointRadius:0,fill:false,tension:0,spanGaps:true},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{...baseScales.x,ticks:{...baseScales.x.ticks,callback:(v,i)=>i%skip===0?allLabels[i]:''}},
+        y:{...baseScales.y}
+      }
+    }
+  });
+}
+
+// ================================================================
+// TAB SWITCHING
+// ================================================================
+function switchTab(tab,btn) {
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  btn.classList.add('active');
+  if(tab==='analytics'&&!analyticsReady) buildAnalytics();
+}
+
+// ================================================================
+// INIT
+// ================================================================
+async function init() {
+  const ok=await loadData();
+  document.getElementById('loading').style.display='none';
+  document.getElementById('app').classList.remove('hidden');
+  initLog();
+  renderHistory();
+  if(!ok) toast('⚠ Could not load data — check API key in CONFIG');
+}
+
+init();
+
+/*
+=======================================================================
+SETUP INSTRUCTIONS — READ BEFORE USING
+=======================================================================
+
+STEP 1: Google Sheets API Key (for reading data)
+─────────────────────────────────────────────────
+1. Go to: console.cloud.google.com
+2. Create a new project (or use existing)
+3. Search "Google Sheets API" → Enable it
+4. Go to Credentials → Create Credentials → API Key
+5. Copy the key and paste it into CONFIG.API_KEY above
+
+STEP 2: Google Apps Script (for saving new log entries)
+────────────────────────────────────────────────────────
+1. Open your Google Sheet
+2. Go to Extensions → Apps Script
+3. Delete existing code, paste this:
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+    const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('2026');
+    const moodScores = {
+      'Awful': 1, 'Bad/Problematic/Zero Day': 2,
+      'Average/Alright': 3, 'Good/Calm/Productive': 4, 'Energetic/Great': 5
+    };
+    const workoutScores = { 'No': 0, 'Yes (Light)': 1, 'Yes (Great)': 2 };
+    sheet.appendRow([
+      data.date, data.weight || '', data.mood, data.workout,
+      moodScores[data.mood] || '', workoutScores[data.workout] || '',
+      data.workout === 'No' ? 0 : 1
+    ]);
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ success: false, error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+4. Click Deploy → New Deployment → Web App
+5. Set: Execute as = Me | Access = Anyone
+6. Click Deploy → Authorize → Copy the URL
+7. Paste the URL into CONFIG.SCRIPT_URL above
+
+STEP 3: Deploy to Vercel (for permanent phone app)
+────────────────────────────────────────────────────
+1. Go to github.com → New repository → upload this file as index.html
+2. Go to vercel.com → Import that GitHub repo → Deploy
+3. You get yourapp.vercel.app — open on phone
+4. Chrome → Share → Add to Home Screen
+   Done. It's on your home screen like a real app.
+
+=======================================================================
+*/
+</script>
+</body>
+</html>
