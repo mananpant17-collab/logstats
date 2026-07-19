@@ -1,0 +1,126 @@
+{
+  "entities": {
+    "users": {
+      "type": "document",
+      "fields": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "healthLogs": {
+      "type": "collection",
+      "parent": "users",
+      "fields": {
+        "date": { "type": "string" },
+        "dateInt": { "type": "number" },
+        "weight": { "type": "number", "optional": true },
+        "workoutCategory": { "type": "string", "optional": true },
+        "workoutNotes": { "type": "string", "optional": true },
+        "foodHealthy": { "type": "array", "optional": true },
+        "foodJunk": { "type": "array", "optional": true },
+        "foodOut": { "type": "array", "optional": true },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    },
+    "workoutExercises": {
+      "type": "collection",
+      "parent": "users",
+      "fields": {
+        "date": { "type": "string" },
+        "dateInt": { "type": "number" },
+        "category": { "type": "string" },
+        "exercise": { "type": "string" },
+        "sets": { "type": "number" },
+        "reps": { "type": "number" },
+        "weight": { "type": "number" },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "studyLogs": {
+      "type": "collection",
+      "parent": "users",
+      "fields": {
+        "date": { "type": "string" },
+        "dateInt": { "type": "number" },
+        "course": { "type": "string" },
+        "hours": { "type": "number" },
+        "type": { "type": "string" }, 
+        "notes": { "type": "string", "optional": true },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "workLogs": {
+      "type": "collection",
+      "parent": "users",
+      "fields": {
+        "date": { "type": "string" },
+        "dateInt": { "type": "number" },
+        "project": { "type": "string" },
+        "hours": { "type": "number" },
+        "notes": { "type": "string", "optional": true },
+        "createdAt": { "type": "timestamp" }
+      }
+    },
+    "moodLogs": {
+      "type": "collection",
+      "parent": "users",
+      "fields": {
+        "date": { "type": "string" },
+        "dateInt": { "type": "number" },
+        "mood": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      }
+    }
+  },
+  "firestore": {
+    "collections": {
+      "users": {
+        "rules": {
+          "read": "request.auth != null && request.auth.uid == resource.id",
+          "write": "request.auth != null && request.auth.uid == resource.id",
+          "create": "request.auth != null && request.auth.uid == request.resource.id"
+        },
+        "subcollections": {
+          "healthLogs": {
+            "rules": {
+              "read": "request.auth != null && request.auth.uid == parentId",
+              "write": "request.auth != null && request.auth.uid == parentId",
+              "create": "request.auth != null && request.auth.uid == parentId"
+            }
+          },
+          "workoutExercises": {
+            "rules": {
+              "read": "request.auth != null && request.auth.uid == parentId",
+              "write": "request.auth != null && request.auth.uid == parentId",
+              "create": "request.auth != null && request.auth.uid == parentId"
+            }
+          },
+          "studyLogs": {
+            "rules": {
+              "read": "request.auth != null && request.auth.uid == parentId",
+              "write": "request.auth != null && request.auth.uid == parentId",
+              "create": "request.auth != null && request.auth.uid == parentId"
+            }
+          },
+          "workLogs": {
+            "rules": {
+              "read": "request.auth != null && request.auth.uid == parentId",
+              "write": "request.auth != null && request.auth.uid == parentId",
+              "create": "request.auth != null && request.auth.uid == parentId"
+            }
+          },
+          "moodLogs": {
+            "rules": {
+              "read": "request.auth != null && request.auth.uid == parentId",
+              "write": "request.auth != null && request.auth.uid == parentId",
+              "create": "request.auth != null && request.auth.uid == parentId"
+            }
+          }
+        }
+      }
+    }
+  }
+}

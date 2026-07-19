@@ -1,0 +1,6 @@
+{
+  "name": "Log Stats",
+  "description": "A private, authenticated daily journal app tracking health, study, work, and mood via Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
