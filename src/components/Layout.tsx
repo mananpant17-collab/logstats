@@ -3,6 +3,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../App';
 import { format } from 'date-fns';
+import { Sparkles, List, BarChart3 } from 'lucide-react';
 
 export default function Layout() {
   const [now, setNow] = useState(new Date());
@@ -17,9 +18,9 @@ export default function Layout() {
   };
   
   const navItems = [
-    { to: '/', label: 'LOG' },
-    { to: '/history', label: 'HISTORY' },
-    { to: '/analytics', label: 'ANALYTICS' },
+    { to: '/', label: 'LOG', icon: Sparkles },
+    { to: '/history', label: 'HISTORY', icon: List },
+    { to: '/analytics', label: 'ANALYTICS', icon: BarChart3 },
   ];
 
   return (
@@ -51,9 +52,9 @@ export default function Layout() {
               }`
             }
           >
-            {({ isActive }) => (
+            {() => (
               <>
-                <div className={`w-2 h-2 rotate-45 transition-colors ${isActive ? 'bg-[#fcd34d]' : 'bg-transparent border border-gray-600'}`} />
+                <item.icon size={16} strokeWidth={1.5} />
                 <span className="text-[9px] tracking-[0.2em] uppercase font-medium">{item.label}</span>
               </>
             )}

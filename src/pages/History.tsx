@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { collection, query, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { useState, useEffect, useMemo } from 'react';
+import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, reAuthWithGoogle } from '../App';
-import { appendToSheet, getUserSpreadsheetId, fetchSheetData } from '../lib/sheets';
+import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
+import { exerciseProgress } from '../lib/insights';
+import { Line, LineChart, ResponsiveContainer } from 'recharts';
 
 export default function History() {
   const [groupedLogs, setGroupedLogs] = useState<Record<string, any>>({});
@@ -13,6 +15,7 @@ export default function History() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
+  const exerciseData = useMemo(() => exerciseProgress(Object.values(groupedLogs).map(log => log.health).filter(Boolean)), [groupedLogs]);
 
   const fetchLogsLocal = async () => {
     if (!auth.currentUser) return;
@@ -62,7 +65,6 @@ export default function History() {
     async function fetchLogs() {
       if (!auth.currentUser) return;
       try {
-        const uid = auth.currentUser.uid;
         const sid = await getUserSpreadsheetId();
         if (sid) setSheetId(sid);
       } catch (err: any) {
@@ -426,6 +428,32 @@ export default function History() {
         </div>
       </div>
 
+      <section className="bg-bg-secondary border border-bg-tertiary rounded-xl p-5 space-y-4">
+        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-teal">Progressive Overload</h2>
+        {exerciseData.length ? (
+          <div className="space-y-3">
+            {exerciseData.map(exercise => (
+              <div key={exercise.name} className="flex items-center gap-3 border-b border-bg-tertiary pb-3 last:border-0 last:pb-0">
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-text-primary">{exercise.name}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-text-tertiary">{exercise.thisMonth.toFixed(1)} kg weighted intensity this month</div>
+                </div>
+                <div className={`text-xs ${exercise.changePct !== null && exercise.changePct >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
+                  {exercise.changePct === null ? '—' : `${exercise.changePct >= 0 ? '▲' : '▼'} ${Math.abs(exercise.changePct).toFixed(0)}%`}
+                </div>
+                <div className="w-24 h-8">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={exercise.sessions}>
+                      <Line type="monotone" dataKey="intensity" stroke="#5a9e8f" strokeWidth={1.5} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <p className="text-xs text-text-tertiary">Log structured exercises on the Log tab to track progressive overload here.</p>}
+      </section>
+
       {loading ? (
         <div className="text-center text-text-tertiary py-10 animate-pulse text-xs tracking-widest uppercase">Loading...</div>
       ) : Object.keys(groupedLogs).length === 0 ? (
@@ -483,11 +511,16 @@ export default function History() {
                     <div>
                       <h3 className="text-[10px] text-accent-teal uppercase tracking-[2px] mb-2 font-semibold">Health</h3>
                       {log.health.weight ? <div><strong className="text-text-primary font-medium">Weight:</strong> {log.health.weight} kg</div> : null}
+                      {log.health.sleepHours ? <div><strong className="text-text-primary font-medium">Sleep:</strong> {log.health.sleepHours} hours</div> : null}
+                      {log.health.water ? <div><strong className="text-text-primary font-medium">Water:</strong> {log.health.water} glasses</div> : null}
+                      {log.health.steps ? <div><strong className="text-text-primary font-medium">Steps:</strong> {log.health.steps}</div> : null}
+                      {log.health.screenTime ? <div><strong className="text-text-primary font-medium">Screen time:</strong> {log.health.screenTime} hours</div> : null}
                       {log.health.workoutCategory ? <div><strong className="text-text-primary font-medium">Workout:</strong> {log.health.workoutCategory}</div> : null}
                       {log.health.workoutNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Notes:</strong><br/>{log.health.workoutNotes}</div> : null}
                       {log.health.foodHealthy?.length > 0 ? <div><strong className="text-text-primary font-medium">Healthy Food:</strong> {log.health.foodHealthy.join(', ')}</div> : null}
                       {log.health.foodJunk?.length > 0 ? <div><strong className="text-text-primary font-medium">Junk Food:</strong> {log.health.foodJunk.join(', ')}</div> : null}
                       {log.health.foodOut?.length > 0 ? <div><strong className="text-text-primary font-medium">Eating Out:</strong> {log.health.foodOut.join(', ')}</div> : null}
+                      {log.health.exercises?.length > 0 ? <div><strong className="text-text-primary font-medium">Exercises:</strong> {log.health.exercises.map((exercise: any) => `${exercise.name} ${exercise.weight}kg · ${exercise.sets}×${exercise.reps}`).join(', ')}</div> : null}
                     </div>
                   )}
                   
@@ -505,6 +538,7 @@ export default function History() {
                       <h3 className="text-[10px] text-accent-red uppercase tracking-[2px] mb-2 font-semibold">Work</h3>
                       {log.work.workNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Work Notes:</strong><br/>{log.work.workNotes}</div> : null}
                       {log.work.networkNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Network Notes:</strong><br/>{log.work.networkNotes}</div> : null}
+                      {log.work.workEnjoyment ? <div><strong className="text-text-primary font-medium">Work enjoyment:</strong> {log.work.workEnjoyment}/5</div> : null}
                     </div>
                   )}
                   

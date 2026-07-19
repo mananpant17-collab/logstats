@@ -4,14 +4,7 @@ import { db, auth } from '../App';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { appendToSheet } from '../lib/sheets';
 import { Plus } from 'lucide-react';
-
-const MOODS = [
-  { key: 'energetic', emoji: '⚡', text: 'Energetic' },
-  { key: 'good/productive', emoji: '😊', text: 'Good/Productive' },
-  { key: 'average', emoji: '😐', text: 'Average' },
-  { key: 'bad/zero day', emoji: '😕', text: 'Bad/Zero Day' },
-  { key: 'awful', emoji: '📉', text: 'Awful' },
-];
+import { MOODS } from '../lib/moods';
 
 export default function Home() {
   const [date] = useState(new Date());
@@ -30,6 +23,11 @@ export default function Home() {
   const [foodHealthy, setFoodHealthy] = useState('');
   const [foodJunk, setFoodJunk] = useState('');
   const [foodOut, setFoodOut] = useState('');
+  const [sleepHours, setSleepHours] = useState('');
+  const [water, setWater] = useState('');
+  const [steps, setSteps] = useState('');
+  const [screenTime, setScreenTime] = useState('');
+  const [exercises, setExercises] = useState<{name: string; weight: string; sets: string; reps: string}[]>([]);
   const [savingHealth, setSavingHealth] = useState(false);
 
   // Study
@@ -41,6 +39,7 @@ export default function Home() {
   // Work
   const [workNotes, setWorkNotes] = useState('');
   const [networkNotes, setNetworkNotes] = useState('');
+  const [workEnjoyment, setWorkEnjoyment] = useState('');
   const [savingWork, setSavingWork] = useState(false);
 
   useEffect(() => {
@@ -67,6 +66,11 @@ export default function Home() {
           setFoodJunk(data.foodJunk?.join(', ') || '');
           setFoodOut(data.foodOut?.join(', ') || '');
           setMood(data.mood || '');
+          setSleepHours(data.sleepHours ?? '');
+          setWater(data.water ?? '');
+          setSteps(data.steps ?? '');
+          setScreenTime(data.screenTime ?? '');
+          setExercises(Array.isArray(data.exercises) ? data.exercises.map((e: any) => ({ name: e.name || '', weight: e.weight ?? '', sets: e.sets ?? '', reps: e.reps ?? '' })) : []);
         } else {
           // Fallback if mood is in old moodLogs
           const mSnap = await getDoc(doc(db, 'users', uid, 'moodLogs', dateStr));
@@ -90,6 +94,7 @@ export default function Home() {
           const data = wSnap.data();
           setWorkNotes(data.workNotes || '');
           setNetworkNotes(data.networkNotes || '');
+          setWorkEnjoyment(data.workEnjoyment ?? '');
         }
         
       } catch (err: any) {
@@ -105,7 +110,7 @@ export default function Home() {
       const confirmed = window.confirm('Save goals to Firebase and append to Google Sheets?');
       if (!confirmed) return;
       setSavingGoals(true);
-      await setDoc(doc(db, 'users', auth.currentUser.uid, 'daily', dateStr), { goals }, { merge: true });
+      await setDoc(doc(db, 'users', auth.currentUser.uid, 'daily', dateStr), { date: dateStr, goals }, { merge: true });
       await appendToSheet('Sheet1!A:J', [[dateStr, goals.map(g => g.text).join(' | '), '', '', '', '', '', '', '', '']]);
     } catch (err: any) {
       console.warn("Save error:", err.message);
@@ -127,7 +132,7 @@ export default function Home() {
   };
 
   const addGoal = () => {
-    setGoals([...goals, '']);
+    setGoals([...goals, { text: '', done: false }]);
   };
 
   const saveHealth = async () => {
@@ -147,6 +152,11 @@ export default function Home() {
         foodJunk: foodJunk.split(',').map(s=>s.trim()).filter(Boolean),
         foodOut: foodOut.split(',').map(s=>s.trim()).filter(Boolean),
         mood,
+        sleepHours: Number(sleepHours) || 0,
+        water: Number(water) || 0,
+        steps: Number(steps) || 0,
+        screenTime: Number(screenTime) || 0,
+        exercises: exercises.filter(e => e.name.trim()).map(e => ({ name: e.name.trim(), weight: Number(e.weight) || 0, sets: Number(e.sets) || 0, reps: Number(e.reps) || 0 })),
         updatedAt: new Date()
       }, { merge: true });
 
@@ -225,6 +235,7 @@ export default function Home() {
         date: dateStr,
         workNotes,
         networkNotes,
+        workEnjoyment: Number(workEnjoyment) || 0,
         updatedAt: new Date()
       }, { merge: true });
 
@@ -309,7 +320,7 @@ export default function Home() {
               <button
                 key={m.key}
                 onClick={() => setMood(m.key === mood ? '' : m.key)}
-                className={`p-2 rounded-lg border text-lg transition-all ${
+                className={`p-2 rounded-lg border text-lg transition-all flex flex-col items-center min-w-[76px] gap-1 ${
                   mood === m.key
                     ? 'border-accent-teal bg-accent-teal/10'
                     : 'border-bg-tertiary text-text-secondary hover:border-text-tertiary'
@@ -317,6 +328,7 @@ export default function Home() {
                 title={m.text}
               >
                 {m.emoji}
+                <span className="text-[9px] tracking-wide uppercase text-text-secondary">{m.text}</span>
               </button>
             ))}
           </div>
@@ -331,6 +343,20 @@ export default function Home() {
             className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal transition-colors"
             placeholder="e.g. 70.5"
           />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            ['Sleep (hours)', sleepHours, setSleepHours],
+            ['Water (glasses)', water, setWater],
+            ['Steps', steps, setSteps],
+            ['Screen time (hours)', screenTime, setScreenTime],
+          ].map(([label, value, setter]) => (
+            <div key={label as string} className="space-y-2">
+              <label className="block text-[10px] tracking-widest uppercase text-text-secondary">{label as string}</label>
+              <input type="number" value={value as string} onChange={e => (setter as (v: string) => void)(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal transition-colors" />
+            </div>
+          ))}
         </div>
 
         <div className="space-y-3">
@@ -357,6 +383,18 @@ export default function Home() {
             className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-teal transition-colors"
             placeholder="e.g. Bench Press: 4x6 @ 60kg"
           />
+          <div className="space-y-3 pt-2">
+            <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Structured Exercises</label>
+            {exercises.map((exercise, i) => (
+              <div key={i} className="grid grid-cols-4 gap-2 items-end">
+                {(['name', 'weight', 'sets', 'reps'] as const).map(field => (
+                  <input key={field} type={field === 'name' ? 'text' : 'number'} placeholder={field === 'name' ? 'Name' : field === 'weight' ? 'kg' : field} value={exercise[field]} onChange={e => setExercises(exercises.map((item, index) => index === i ? { ...item, [field]: e.target.value } : item))} className="min-w-0 bg-bg-primary border border-bg-tertiary rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-accent-teal" />
+                ))}
+                <button type="button" onClick={() => setExercises(exercises.filter((_, index) => index !== i))} className="col-span-4 text-left text-[10px] uppercase tracking-widest text-text-tertiary hover:text-accent-red">× Remove</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setExercises([...exercises, { name: '', weight: '', sets: '', reps: '' }])} className="flex items-center gap-2 text-xs text-text-tertiary uppercase tracking-widest hover:text-accent-teal"><Plus size={14} /> Add Exercise</button>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -423,6 +461,13 @@ export default function Home() {
       <section className="bg-bg-secondary p-5 rounded-2xl border border-bg-tertiary space-y-4">
         <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-red border-b border-bg-tertiary pb-3">Work</h2>
         
+        <div className="space-y-2">
+          <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Did you enjoy today's work?</label>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4, 5].map(value => <button key={value} onClick={() => setWorkEnjoyment(String(value === Number(workEnjoyment) ? '' : value))} className={`w-9 h-9 rounded-lg border text-xs ${Number(workEnjoyment) === value ? 'border-accent-red bg-accent-red/10 text-accent-red' : 'border-bg-tertiary text-text-secondary'}`}>{value}</button>)}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Projects & Jobs</label>
           <textarea 
