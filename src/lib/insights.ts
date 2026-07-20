@@ -67,6 +67,15 @@ export function metricBucket(log: any, metric: MetricName): string {
   return value < 4 ? '<4h' : value < 8 ? '4-8h' : '8h+';
 }
 
+export function isWorkoutDay(log: any): boolean {
+  if (Array.isArray(log?.workoutCategories) && log.workoutCategories.some((category: any) => typeof category === 'string' && category.trim())) {
+    return true;
+  }
+  const legacyCategory = typeof log?.workoutCategory === 'string' ? log.workoutCategory.trim().toLowerCase() : '';
+  if (legacyCategory && !['no', 'none', 'rest'].includes(legacyCategory)) return true;
+  return Array.isArray(log?.exercises) && log.exercises.some((exercise: any) => typeof exercise?.name === 'string' && exercise.name.trim());
+}
+
 export function weightedIntensity(exs: Exercise[]): number {
   let weighted = 0;
   let volume = 0;

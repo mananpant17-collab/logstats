@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, reAuthWithGoogle } from '../App';
 import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
-import { metricBucket } from '../lib/insights';
+import { isWorkoutDay, metricBucket } from '../lib/insights';
 import { moodEmoji } from '../lib/moods';
 
 export default function History() {
@@ -272,7 +272,7 @@ export default function History() {
           batch.set(doc(db, 'users', uid, 'healthLogs', dateStr), {
             date: dateStr,
             weight: weight,
-            workoutCategory: workout,
+            workoutCategory: workout.toLowerCase().startsWith('no') ? '' : workout,
             updatedAt: new Date()
           }, { merge: true });
           operationsInBatch++;
@@ -473,7 +473,7 @@ export default function History() {
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-[0.08em] uppercase text-text-tertiary">
                           {log.health?.weight ? <span>{log.health.weight} kg</span> : null}
                           {goals.length ? <span>{completedGoals}/{goals.length} goals</span> : null}
-                          {log.health?.workoutCategory ? <span>{log.health.workoutCategory}</span> : null}
+                          {isWorkoutDay(log.health) ? <span>{Array.isArray(log.health.workoutCategories) && log.health.workoutCategories.length ? log.health.workoutCategories.join(' · ') : log.health.workoutCategory}</span> : null}
                         </div>
                       </div>
                       <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
@@ -514,7 +514,7 @@ export default function History() {
                                 return value ? <div key={metric}><div className="text-[9px] uppercase tracking-widest text-text-tertiary">{labels[metric]}</div><div className="mt-1 text-sm text-text-primary">{value}</div></div> : null;
                               })}
                             </div>
-                            {log.health.workoutCategory && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Workout</div><div className="mt-1 text-sm text-text-primary">{log.health.workoutCategory}</div></div>}
+                            {isWorkoutDay(log.health) && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Workout</div><div className="mt-1 text-sm text-text-primary">{Array.isArray(log.health.workoutCategories) && log.health.workoutCategories.length ? log.health.workoutCategories.join(' · ') : log.health.workoutCategory}</div></div>}
                             {log.health.workoutNotes && <div className="whitespace-pre-wrap text-sm text-text-secondary"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Workout notes</div>{log.health.workoutNotes}</div>}
                             {log.health.exercises?.length > 0 && (
                               <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Structured exercises</div>{log.health.exercises.map((exercise: any, i: number) => <div key={i} className="flex justify-between gap-3 rounded-xl bg-bg-secondary px-3 py-2 text-xs"><span className="text-text-primary">{exercise.name}</span><span className="text-text-tertiary">{exercise.weight}kg · {exercise.sets}×{exercise.reps}</span></div>)}</div>

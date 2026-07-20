@@ -63,7 +63,8 @@ export default function Home() {
   // Health & Mood
   const [mood, setMood] = useState('');
   const [weight, setWeight] = useState('');
-  const [workoutCategory, setWorkoutCategory] = useState('');
+  const [workoutCategories, setWorkoutCategories] = useState<string[]>([]);
+  const [otherWorkout, setOtherWorkout] = useState('');
   const [workoutNotes, setWorkoutNotes] = useState('');
   const [foodHome, setFoodHome] = useState('');
   const [foodOutside, setFoodOutside] = useState('');
@@ -120,7 +121,13 @@ export default function Home() {
         if (hSnap.exists()) {
           const data = hSnap.data();
           setWeight(data.weight || '');
-          setWorkoutCategory(data.workoutCategory || '');
+          const loadedCategories = Array.isArray(data.workoutCategories)
+            ? data.workoutCategories.filter((category: any) => typeof category === 'string' && category.trim())
+            : data.workoutCategory && !['no', 'none', 'rest'].includes(String(data.workoutCategory).trim().toLowerCase())
+              ? [data.workoutCategory]
+              : [];
+          setWorkoutCategories(loadedCategories);
+          setOtherWorkout(loadedCategories.find((category: string) => !['Push', 'Pull', 'Legs', 'Core', 'Yoga/Mobility', 'Arms', 'Running', 'Sports', 'Other'].includes(category)) || '');
           setWorkoutNotes(data.workoutNotes || '');
           setFoodHome(data.foodHome?.join(', ') || data.foodHealthy?.join(', ') || '');
           setFoodOutside(data.foodOutside?.join(', ') || data.foodOut?.join(', ') || data.foodJunk?.join(', ') || '');
@@ -207,7 +214,8 @@ export default function Home() {
       await setDoc(docRef, {
         date: dateStr,
         weight: Number(weight) || 0,
-        workoutCategory,
+        workoutCategory: workoutCategories.join(', '),
+        workoutCategories,
         workoutNotes,
         foodHome: foodHome.split(',').map(s=>s.trim()).filter(Boolean),
         foodOutside: foodOutside.split(',').map(s=>s.trim()).filter(Boolean),
@@ -232,7 +240,7 @@ export default function Home() {
           '',
           mood,
           weight,
-          workoutCategory,
+          workoutCategories.join(', '),
           workoutNotes,
           `Home: ${foodHome}\nOutside: ${foodOutside}\nHealthy outside: ${foodHealthyOutside}`,
           '',
@@ -402,7 +410,24 @@ export default function Home() {
     }
   };
 
-  const categories = ['Push', 'Pull', 'Legs', 'Core', 'Mobility', 'Running', 'Sports'];
+  const categories = ['Push', 'Pull', 'Legs', 'Core', 'Arms', 'Yoga/Mobility', 'Running', 'Sports', 'Other'];
+  const toggleWorkoutCategory = (category: string) => {
+    if (category === 'Other') {
+      setWorkoutCategories(current => current.includes('Other')
+        ? current.filter(item => item !== 'Other')
+        : [...current, 'Other']);
+      return;
+    }
+    setWorkoutCategories(current => current.includes(category)
+      ? current.filter(item => item !== category)
+      : [...current, category]);
+  };
+  const addOtherWorkout = () => {
+    const value = otherWorkout.trim();
+    if (!value) return;
+    setWorkoutCategories(current => current.includes(value) ? current : [...current, value]);
+    setOtherWorkout('');
+  };
   const stepWeight = (delta: number) => {
     const current = Number(weight) || 0;
     setWeight((Math.round((current + delta) * 10) / 10).toFixed(1));
@@ -519,20 +544,20 @@ export default function Home() {
             <h3 className="text-[10px] tracking-[0.2em] uppercase text-text-secondary">Mood Check-in</h3>
             <span className="text-[9px] tracking-wide text-text-tertiary">Tap again to deselect</span>
           </div>
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
+          <div className="grid grid-cols-5 gap-1.5">
             {MOODS.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setMood(m.key === mood ? '' : m.key)}
-                className={`min-h-[108px] rounded-2xl border transition-all flex flex-col items-center justify-center gap-2 ${
+                className={`min-h-[76px] rounded-xl border transition-all flex flex-col items-center justify-center gap-1 ${
                   mood === m.key
                     ? 'border-accent-teal bg-accent-teal/10 text-accent-teal shadow-[0_0_0_1px_rgba(90,158,143,0.2)]'
                     : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
                 }`}
                 title={m.text}
               >
-                <span className="text-4xl leading-none">{m.emoji}</span>
-                <span className="text-[10px] tracking-[0.12em] uppercase">{m.text}</span>
+                <span className="text-2xl leading-none">{m.emoji}</span>
+                <span className="text-[7px] tracking-[0.04em] uppercase text-center leading-tight">{m.text}</span>
               </button>
             ))}
           </div>
@@ -559,13 +584,13 @@ export default function Home() {
 
         <div className="space-y-4">
           <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary">Workout Category</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-2">
             {categories.map(cat => (
               <button
                 key={cat}
-                onClick={() => setWorkoutCategory(cat === workoutCategory ? '' : cat)}
-                className={`min-h-[60px] rounded-2xl border text-xs tracking-[0.12em] uppercase transition-colors ${
-                  workoutCategory === cat 
+                onClick={() => toggleWorkoutCategory(cat)}
+                className={`min-h-[52px] rounded-xl border text-[10px] tracking-[0.08em] uppercase transition-colors ${
+                  workoutCategories.includes(cat)
                     ? 'border-accent-teal bg-accent-teal/10 text-accent-teal' 
                     : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
                 }`}
@@ -574,6 +599,18 @@ export default function Home() {
               </button>
             ))}
           </div>
+          {workoutCategories.some(category => !categories.includes(category)) || workoutCategories.includes('Other') ? (
+            <div className="flex gap-2">
+              <input
+                value={otherWorkout}
+                onChange={e => setOtherWorkout(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addOtherWorkout(); }}
+                className="min-w-0 flex-1 bg-bg-primary border border-bg-tertiary rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary"
+                placeholder="Custom workout · e.g. Chest and back"
+              />
+              <button type="button" onClick={addOtherWorkout} className="rounded-xl border border-accent-teal/50 px-3 text-[10px] uppercase tracking-widest text-accent-teal">Add</button>
+            </div>
+          ) : null}
           <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mt-5">Workout Journal</label>
           <textarea 
             value={workoutNotes}
