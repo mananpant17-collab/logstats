@@ -527,7 +527,7 @@ export default function Home() {
           type="date"
           value={dateStr}
           onChange={event => setSearchParams({ date: event.target.value })}
-          className="mx-auto mt-3 block rounded-md border-[0.5px] border-border-subtle bg-bg-secondary px-2.5 py-1.5 font-mono text-[11px] text-text-secondary outline-none focus:border-border-strong"
+          className="mx-auto mt-3 block rounded-md border-[0.5px] border-border-subtle bg-bg-secondary px-2.5 py-1.5 text-center font-mono text-[11px] text-text-secondary outline-none focus:border-border-strong"
         />
       </div>
 

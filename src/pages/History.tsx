@@ -503,8 +503,8 @@ export default function History() {
                       }}
                       className="w-full px-5 py-3 flex items-center gap-3 text-left cursor-pointer focus:outline-none hover:bg-bg-secondary transition-colors"
                     >
-                      <div className="grid min-w-0 flex-1 grid-cols-[max-content_minmax(0,1fr)_46px_20px] items-center gap-2">
-                        <span className="font-mono text-[10px] whitespace-nowrap text-text-secondary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
+                      <div className="grid min-w-0 flex-1 grid-cols-[8.5rem_minmax(0,1fr)_46px_20px] items-center gap-2">
+                        <span className="font-mono text-left text-[10px] whitespace-nowrap text-text-secondary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
                         <div className="h-mood-wrap flex min-w-0 items-center gap-2">
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: moodDotColor(mood) }} />
                           <span className="truncate text-xs text-text-secondary">{mood || 'No mood logged'}</span>
