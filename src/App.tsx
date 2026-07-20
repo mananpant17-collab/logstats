@@ -32,7 +32,7 @@ export const setAccessToken = (token: string | null) => {
 
 export const reAuthWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
-  provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+  provider.addScope('https://www.googleapis.com/auth/drive.file');
   provider.setCustomParameters({ prompt: 'select_account consent' });
   const result = await signInWithPopup(auth, provider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
@@ -120,7 +120,7 @@ function App() {
       setAuthError(null);
       setAuthErrorCode(null);
       const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/spreadsheets');
+      provider.addScope('https://www.googleapis.com/auth/drive.file');
       provider.setCustomParameters({
         prompt: 'select_account consent'
       });

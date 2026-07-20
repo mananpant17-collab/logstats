@@ -30,7 +30,7 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-Add `localhost` (and the eventual deployment domain) to Firebase Authentication's authorized domains. Google sign-in requests the Google Sheets scope so the app can optionally create, append to, and export each user's spreadsheet.
+Add `localhost` (and the eventual deployment domain) to Firebase Authentication's authorized domains. Google sign-in requests the non-sensitive `drive.file` scope so the app can create, append to, and export its own spreadsheet.
 
 ### Run
 
