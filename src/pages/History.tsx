@@ -4,6 +4,7 @@ import { db, auth, reAuthWithGoogle } from '../App';
 import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
 import { isWorkoutDay, metricBucket } from '../lib/insights';
 import { moodEmoji } from '../lib/moods';
+import { format, parseISO } from 'date-fns';
 
 export default function History() {
   const [groupedLogs, setGroupedLogs] = useState<Record<string, any>>({});
@@ -467,7 +468,7 @@ export default function History() {
                     >
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold tracking-[0.14em] uppercase">{log.date}</span>
+                          <span className="text-sm font-semibold text-text-primary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
                           <span className="text-xl leading-none">{moodEmoji(mood)}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-[0.08em] uppercase text-text-tertiary">
