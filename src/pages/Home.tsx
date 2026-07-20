@@ -262,19 +262,23 @@ export default function Home() {
   };
 
   const categories = ['Push', 'Pull', 'Legs', 'Core', 'Mobility', 'Running', 'Sports'];
+  const stepWeight = (delta: number) => {
+    const current = Number(weight) || 0;
+    setWeight((Math.round((current + delta) * 10) / 10).toFixed(1));
+  };
 
   return (
-    <div className="p-6 pb-24 max-w-xl mx-auto space-y-12">
-      <div className="text-center space-y-2 mb-8">
-        <h1 className="font-serif text-5xl font-light text-text-primary">{format(date, 'dd')}</h1>
-        <div className="text-xs text-text-secondary tracking-[3px] uppercase">
+    <div className="p-5 sm:p-6 pb-24 max-w-xl mx-auto space-y-8 sm:space-y-12">
+      <div className="text-center space-y-3 mb-10">
+        <h1 className="font-serif text-6xl font-light leading-none text-text-primary">{format(date, 'dd')}</h1>
+        <div className="text-[10px] text-text-secondary tracking-[0.35em] uppercase">
           {format(date, 'MMMM yyyy')} • {dayName}
         </div>
       </div>
 
       {/* GOALS */}
-      <section className="bg-bg-secondary p-5 rounded-2xl border border-bg-tertiary space-y-4">
-        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-text-primary border-b border-bg-tertiary pb-3">Today's Goals</h2>
+      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-6">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-text-primary border-b border-bg-tertiary pb-4">Today's Goals</h2>
         <div className="space-y-3">
           {goals.map((goal, i) => (
             <div key={i} className="flex items-center gap-3">
@@ -300,49 +304,53 @@ export default function Home() {
             <Plus size={14} /> Add Goal
           </button>
         </div>
-        <button 
-          onClick={saveGoals}
-          disabled={savingGoals}
-          className="w-full mt-4 py-3 bg-bg-tertiary text-text-primary font-semibold tracking-widest text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50"
+          <button
+            onClick={saveGoals}
+            disabled={savingGoals}
+          className="w-full mt-5 py-3.5 bg-bg-tertiary text-text-primary font-semibold tracking-[0.2em] text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50 hover:bg-bg-tertiary/80"
         >
           {savingGoals ? 'Saving...' : 'Save Goals'}
         </button>
       </section>
 
       {/* HEALTH & MOOD */}
-      <section className="bg-bg-secondary p-5 rounded-2xl border border-bg-tertiary space-y-6">
-        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-teal border-b border-bg-tertiary pb-3">Health & Mood</h2>
+      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-9">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-teal border-b border-bg-tertiary pb-4">Health & Mood</h2>
         
         <div className="space-y-3">
-          <h3 className="text-[10px] tracking-[2px] uppercase text-text-tertiary mb-2">Mood Check-in</h3>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-end justify-between gap-3">
+            <h3 className="text-[10px] tracking-[0.2em] uppercase text-text-secondary">Mood Check-in</h3>
+            <span className="text-[9px] tracking-wide text-text-tertiary">Tap again to deselect</span>
+          </div>
+          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
             {MOODS.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setMood(m.key === mood ? '' : m.key)}
-                className={`p-2 rounded-lg border text-lg transition-all flex flex-col items-center min-w-[76px] gap-1 ${
+                className={`min-h-[108px] rounded-2xl border transition-all flex flex-col items-center justify-center gap-2 ${
                   mood === m.key
-                    ? 'border-accent-teal bg-accent-teal/10'
-                    : 'border-bg-tertiary text-text-secondary hover:border-text-tertiary'
+                    ? 'border-accent-teal bg-accent-teal/10 text-accent-teal shadow-[0_0_0_1px_rgba(90,158,143,0.2)]'
+                    : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
                 }`}
                 title={m.text}
               >
-                {m.emoji}
-                <span className="text-[9px] tracking-wide uppercase text-text-secondary">{m.text}</span>
+                <span className="text-4xl leading-none">{m.emoji}</span>
+                <span className="text-[10px] tracking-[0.12em] uppercase">{m.text}</span>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Weight (kg)</label>
-          <input 
-            type="number" 
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal transition-colors"
-            placeholder="e.g. 70.5"
-          />
+        <div className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 px-5 py-6 text-center">
+          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mb-4">Weight</label>
+          <div className="flex items-center justify-center gap-7">
+            <button type="button" onClick={() => stepWeight(-0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">−</button>
+            <div className="min-w-[120px]">
+              <div className="font-serif text-5xl font-light leading-none text-text-primary">{weight || '—'}</div>
+              <div className="mt-2 text-[10px] tracking-[0.18em] uppercase text-text-tertiary">kilograms</div>
+            </div>
+            <button type="button" onClick={() => stepWeight(0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">+</button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -352,70 +360,76 @@ export default function Home() {
             ['Steps', steps, setSteps],
             ['Screen time (hours)', screenTime, setScreenTime],
           ].map(([label, value, setter]) => (
-            <div key={label as string} className="space-y-2">
-              <label className="block text-[10px] tracking-widest uppercase text-text-secondary">{label as string}</label>
-              <input type="number" value={value as string} onChange={e => (setter as (v: string) => void)(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal transition-colors" />
+            <div key={label as string} className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3.5 space-y-2">
+              <label className="block text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{label as string}</label>
+              <input type="number" value={value as string} onChange={e => (setter as (v: string) => void)(e.target.value)} className="w-full bg-transparent text-base text-text-primary focus:outline-none placeholder:text-text-tertiary" placeholder="—" />
             </div>
           ))}
         </div>
 
-        <div className="space-y-3">
-          <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Workout Category</label>
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-4">
+          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary">Workout Category</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => setWorkoutCategory(cat === workoutCategory ? '' : cat)}
-                className={`px-3 py-1.5 rounded-lg border text-xs tracking-wider transition-colors ${
+                className={`min-h-[60px] rounded-2xl border text-xs tracking-[0.12em] uppercase transition-colors ${
                   workoutCategory === cat 
                     ? 'border-accent-teal bg-accent-teal/10 text-accent-teal' 
-                    : 'border-bg-tertiary text-text-secondary hover:border-text-tertiary'
+                    : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
                 }`}
               >
                 {cat}
               </button>
             ))}
           </div>
-          <label className="block text-[10px] tracking-widest uppercase text-text-secondary mt-3">Workout Journal</label>
+          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mt-5">Workout Journal</label>
           <textarea 
             value={workoutNotes}
             onChange={(e) => setWorkoutNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-teal transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-teal transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Bench Press: 4x6 @ 60kg"
           />
-          <div className="space-y-3 pt-2">
-            <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Structured Exercises</label>
+          <div className="space-y-4 pt-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary">Structured Exercises</label>
+              <span className="text-[9px] text-text-tertiary">Progressive overload</span>
+            </div>
             {exercises.map((exercise, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2 items-end">
+              <div key={i} className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3 grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] gap-2.5 items-end">
                 {(['name', 'weight', 'sets', 'reps'] as const).map(field => (
-                  <input key={field} type={field === 'name' ? 'text' : 'number'} placeholder={field === 'name' ? 'Name' : field === 'weight' ? 'kg' : field} value={exercise[field]} onChange={e => setExercises(exercises.map((item, index) => index === i ? { ...item, [field]: e.target.value } : item))} className="min-w-0 bg-bg-primary border border-bg-tertiary rounded-lg px-2 py-2 text-xs focus:outline-none focus:border-accent-teal" />
+                  <label key={field} className="min-w-0 space-y-1.5">
+                    <span className="block text-[8px] tracking-[0.12em] uppercase text-text-tertiary">{field === 'weight' ? 'Weight kg' : field}</span>
+                    <input type={field === 'name' ? 'text' : 'number'} placeholder={field === 'name' ? 'Exercise' : field === 'weight' ? '0' : '0'} value={exercise[field]} onChange={e => setExercises(exercises.map((item, index) => index === i ? { ...item, [field]: e.target.value } : item))} className="min-w-0 w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-2.5 py-2.5 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" />
+                  </label>
                 ))}
-                <button type="button" onClick={() => setExercises(exercises.filter((_, index) => index !== i))} className="col-span-4 text-left text-[10px] uppercase tracking-widest text-text-tertiary hover:text-accent-red">× Remove</button>
+                <button type="button" onClick={() => setExercises(exercises.filter((_, index) => index !== i))} className="col-span-2 sm:col-span-4 text-left text-[9px] uppercase tracking-[0.15em] text-text-tertiary hover:text-accent-red transition-colors">× Remove exercise</button>
               </div>
             ))}
-            <button type="button" onClick={() => setExercises([...exercises, { name: '', weight: '', sets: '', reps: '' }])} className="flex items-center gap-2 text-xs text-text-tertiary uppercase tracking-widest hover:text-accent-teal"><Plus size={14} /> Add Exercise</button>
+            <button type="button" onClick={() => setExercises([...exercises, { name: '', weight: '', sets: '', reps: '' }])} className="flex items-center gap-2 text-[10px] text-text-tertiary uppercase tracking-[0.18em] hover:text-accent-teal transition-colors"><Plus size={14} /> Add Exercise</button>
           </div>
         </div>
 
         <div className="space-y-3">
-          <label className="block text-[10px] tracking-widest uppercase text-text-secondary mb-2">Nutrition</label>
-          <input type="text" value={foodHealthy} onChange={e=>setFoodHealthy(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent-teal" placeholder="Healthy (e.g. Salad)" />
-          <input type="text" value={foodJunk} onChange={e=>setFoodJunk(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent-teal" placeholder="Junk (e.g. Chips)" />
-          <input type="text" value={foodOut} onChange={e=>setFoodOut(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-accent-teal" placeholder="Eating out (e.g. Sushi)" />
+          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mb-2">Nutrition</label>
+          <input type="text" value={foodHealthy} onChange={e=>setFoodHealthy(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Healthy · e.g. Salad" />
+          <input type="text" value={foodJunk} onChange={e=>setFoodJunk(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Junk · e.g. Chips" />
+          <input type="text" value={foodOut} onChange={e=>setFoodOut(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Eating out · e.g. Sushi" />
         </div>
 
         <button 
           onClick={saveHealth}
           disabled={savingHealth}
-          className="w-full py-3 bg-accent-teal text-[#1a0f07] font-semibold tracking-widest text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50"
+          className="w-full py-4 bg-accent-teal text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-teal/10"
         >
           {savingHealth ? 'Saving...' : 'Save Health & Mood'}
         </button>
       </section>
 
       {/* STUDY */}
-      <section className="bg-bg-secondary p-5 rounded-2xl border border-bg-tertiary space-y-4">
-        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-amber border-b border-bg-tertiary pb-3">Study & Learning</h2>
+      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-amber border-b border-bg-tertiary pb-4">Study & Learning</h2>
         
         <div className="space-y-2">
           <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Practice Hours</label>
@@ -423,7 +437,7 @@ export default function Home() {
             type="number" 
             value={practiceHours}
             onChange={(e) => setPracticeHours(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-amber transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm focus:outline-none focus:border-accent-amber transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. 2.5"
           />
         </div>
@@ -433,7 +447,7 @@ export default function Home() {
           <textarea 
             value={schoolNotes}
             onChange={(e) => setSchoolNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-amber transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-amber transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Math: Revised Chapter 4."
           />
         </div>
@@ -443,7 +457,7 @@ export default function Home() {
           <textarea 
             value={learningNotes}
             onChange={(e) => setLearningNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-amber transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-amber transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Read 20 pages of a book."
           />
         </div>
@@ -451,20 +465,20 @@ export default function Home() {
         <button 
           onClick={saveStudy}
           disabled={savingStudy}
-          className="w-full py-3 bg-accent-amber text-[#1a0f07] font-semibold tracking-widest text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50"
+          className="w-full py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-amber/10"
         >
           {savingStudy ? 'Saving...' : 'Save Study Log'}
         </button>
       </section>
 
       {/* WORK */}
-      <section className="bg-bg-secondary p-5 rounded-2xl border border-bg-tertiary space-y-4">
-        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-red border-b border-bg-tertiary pb-3">Work</h2>
+      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-red border-b border-bg-tertiary pb-4">Work</h2>
         
         <div className="space-y-2">
           <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Did you enjoy today's work?</label>
           <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map(value => <button key={value} onClick={() => setWorkEnjoyment(String(value === Number(workEnjoyment) ? '' : value))} className={`w-9 h-9 rounded-lg border text-xs ${Number(workEnjoyment) === value ? 'border-accent-red bg-accent-red/10 text-accent-red' : 'border-bg-tertiary text-text-secondary'}`}>{value}</button>)}
+            {[1, 2, 3, 4, 5].map(value => <button key={value} onClick={() => setWorkEnjoyment(String(value === Number(workEnjoyment) ? '' : value))} className={`w-11 h-11 rounded-xl border text-xs transition-colors ${Number(workEnjoyment) === value ? 'border-accent-red bg-accent-red/10 text-accent-red' : 'border-bg-tertiary text-text-secondary hover:border-accent-red/60'}`}>{value}</button>)}
           </div>
         </div>
 
@@ -473,7 +487,7 @@ export default function Home() {
           <textarea 
             value={workNotes}
             onChange={(e) => setWorkNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-red transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-red transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Built feature X for work."
           />
         </div>
@@ -483,7 +497,7 @@ export default function Home() {
           <textarea 
             value={networkNotes}
             onChange={(e) => setNetworkNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm min-h-[80px] focus:outline-none focus:border-accent-red transition-colors"
+            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-red transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Met with team regarding Y."
           />
         </div>
@@ -491,7 +505,7 @@ export default function Home() {
         <button 
           onClick={saveWork}
           disabled={savingWork}
-          className="w-full py-3 bg-accent-red text-[#1a0f07] font-semibold tracking-widest text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50"
+          className="w-full py-4 bg-accent-red text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-red/10"
         >
           {savingWork ? 'Saving...' : 'Save Work Log'}
         </button>

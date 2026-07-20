@@ -352,7 +352,7 @@ export default function History() {
   };
 
   return (
-    <div className="p-6 pb-24 max-w-xl mx-auto space-y-8 text-text-primary">
+    <div className="p-5 sm:p-6 pb-24 max-w-xl mx-auto space-y-9 text-text-primary">
       {confirmDialog && (
         <div className="fixed inset-0 z-50 bg-bg-primary/80 flex items-center justify-center p-4">
           <div className="bg-bg-secondary border border-bg-tertiary rounded-xl p-6 max-w-sm w-full space-y-6 shadow-2xl">
@@ -428,12 +428,12 @@ export default function History() {
         </div>
       </div>
 
-      <section className="bg-bg-secondary border border-bg-tertiary rounded-xl p-5 space-y-4">
-        <h2 className="text-xs font-semibold tracking-[3px] uppercase text-accent-teal">Progressive Overload</h2>
+      <section className="bg-bg-secondary border border-bg-tertiary rounded-2xl p-6 space-y-5">
+        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-teal border-b border-bg-tertiary pb-4">Progressive Overload</h2>
         {exerciseData.length ? (
           <div className="space-y-3">
             {exerciseData.map(exercise => (
-              <div key={exercise.name} className="flex items-center gap-3 border-b border-bg-tertiary pb-3 last:border-0 last:pb-0">
+              <div key={exercise.name} className="flex items-center gap-3 border-b border-bg-tertiary pb-4 last:border-0 last:pb-0">
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-text-primary">{exercise.name}</div>
                   <div className="text-[10px] uppercase tracking-widest text-text-tertiary">{exercise.thisMonth.toFixed(1)} kg weighted intensity this month</div>
@@ -470,20 +470,20 @@ export default function History() {
               return acc;
             }, {})
           ).map(([monthStr, logs]: [string, any]) => (
-            <div key={monthStr} className="space-y-4">
-              <h2 className="text-xs font-semibold tracking-[3px] uppercase text-text-tertiary mt-8 mb-4 border-b border-bg-tertiary pb-2">{monthStr}</h2>
+            <div key={monthStr} className="space-y-5">
+              <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-text-tertiary mt-8 mb-5 border-b border-bg-tertiary pb-3">{monthStr}</h2>
               {logs.map((log: any) => (
-            <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-xl overflow-hidden transition-all">
+            <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-2xl overflow-hidden transition-all">
               <button 
                 onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
-                className="w-full p-4 flex items-center justify-between text-left focus:outline-none"
+                className="w-full p-5 flex items-center justify-between text-left focus:outline-none"
               >
                 <span className="text-sm font-semibold tracking-widest uppercase">{log.date}</span>
                 <span className="text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
               </button>
               
               {expandedDate === log.date && (
-                <div className="px-4 pb-4 space-y-6 text-sm text-text-secondary border-t border-bg-tertiary pt-4">
+                <div className="px-5 pb-5 space-y-7 text-sm text-text-secondary border-t border-bg-tertiary pt-5">
                   
                   {log.daily?.goals && (
                     <div>
