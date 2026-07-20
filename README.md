@@ -3,7 +3,6 @@
 ## Contents
 
 - [TL;DR](#tldr)
-- [Quick start](#quick-start)
 - [How to use the app](#how-to-use-the-app)
 - [Architecture and project structure](#architecture-and-project-structure)
 - [Google Sheets](#google-sheets)
@@ -14,42 +13,6 @@
 ## TL;DR
 
 Log Stats is a private, Google-authenticated, mobile-first daily tracker for health, workouts, mood, goals, nutrition, study, and work, with an analytics dashboard. It is built with React 19, TypeScript, Vite, Tailwind CSS v4, Firebase Authentication and Firestore, Recharts, and optional Google Sheets export. Data is stored per authenticated user and is private to that user.
-
-## Quick start
-
-### Prerequisites
-
-- Node.js 20.19+ (or Node.js 22.12+)
-- npm
-- A Firebase web app with Google Authentication enabled
-
-### Install and configure
-
-```bash
-npm install
-cp .env.example .env
-```
-
-Fill in the `VITE_FIREBASE_*` values in `.env` with the Firebase web configuration:
-
-```text
-VITE_FIREBASE_API_KEY=
-VITE_FIREBASE_AUTH_DOMAIN=
-VITE_FIREBASE_PROJECT_ID=
-VITE_FIREBASE_STORAGE_BUCKET=
-VITE_FIREBASE_MESSAGING_SENDER_ID=
-VITE_FIREBASE_APP_ID=
-```
-
-Add `localhost` to Firebase Authentication's authorized domains for local development. Google sign-in requests the non-sensitive `drive.file` scope, which lets the app create and work with its own spreadsheet without the sensitive Google Sheets scope or the associated unverified-app warning.
-
-### Run locally
-
-```bash
-npm run dev       # Vite development server on port 3000
-npm run build     # Production build in dist/
-npm run preview   # Preview the production build
-```
 
 ## How to use the app
 
@@ -115,14 +78,6 @@ Google Sheets is an optional export and append integration. Each user gets an au
 Authentication uses the non-sensitive `drive.file` scope. It permits the app to create and access the spreadsheet it creates, without requesting broad access to the user's Drive or all spreadsheets. This avoids the Google "unverified app" warning associated with sensitive scopes.
 
 Firestore remains the source of truth. Newer fields such as lifestyle buckets, structured exercises, learning and work items, enjoyment ratings, and goal done-state are not fully mirrored to Sheets. The Sheets payload and `src/lib/sheets.ts` should be treated as compatibility-sensitive code.
-
-## Privacy and security
-
-- `.env` is gitignored and must never be committed.
-- Firebase web API keys are public by design because they are embedded in the client; they are not secrets.
-- Actual data protection comes from `firestore.rules`, which isolates each authenticated user to their own `users/{uid}` tree.
-- Keep private credentials, service-account keys, OAuth client secrets, and other secrets out of the repository.
-- Do not weaken the per-user rules when adding collections or features.
 
 ## Deployment
 
