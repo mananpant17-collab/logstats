@@ -1,18 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
-import { collection, query, orderBy, getDocs, limit } from 'firebase/firestore';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { collection, getDocs, orderBy, query } from 'firebase/firestore';
 import { db, auth } from '../App';
-import { subDays, parseISO, isAfter, format, startOfMonth, isSameMonth } from 'date-fns';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { format, parseISO } from 'date-fns';
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { MOODS, moodLabel, moodScore } from '../lib/moods';
+import { correlationStrength, isWorkoutDay, linearRegression, metricBucket, pearson } from '../lib/insights';
+
+const num = (value: unknown) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const sectionTitle = 'text-[10px] tracking-[0.25em] uppercase text-text-tertiary';
+const cardClass = 'bg-bg-secondary border-[0.5px] border-border-subtle rounded-[10px] p-4';
+
+const ChartTooltip = ({ active, payload, label }: any) => active && payload?.length ? (
+  <div className="bg-bg-elevated border-[0.5px] border-border-strong rounded-lg px-3 py-2 text-xs shadow-xl">
+    <div className="font-mono text-[10px] text-text-tertiary">{label}</div>
+    <div className="mt-1 font-mono text-text-primary">{payload[0].value}</div>
+  </div>
+) : null;
 
 export default function Analytics() {
   const [activeTab, setActiveTab] = useState<'Health' | 'Study' | 'Work'>('Health');
   const [timeRange, setTimeRange] = useState<7 | 30 | 365>(30);
-  
   const [healthLogs, setHealthLogs] = useState<any[]>([]);
   const [studyLogs, setStudyLogs] = useState<any[]>([]);
   const [workLogs, setWorkLogs] = useState<any[]>([]);
   const [moodLogs, setMoodLogs] = useState<any[]>([]);
   const [dailyLogs, setDailyLogs] = useState<any[]>([]);
+  const [learningItems, setLearningItems] = useState<any[]>([]);
+  const [workItems, setWorkItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,25 +37,21 @@ export default function Analytics() {
       if (!auth.currentUser) return;
       try {
         const uid = auth.currentUser.uid;
-        
-        const hQ = query(collection(db, 'users', uid, 'healthLogs'), orderBy('date', 'asc'), limit(365));
-        const sQ = query(collection(db, 'users', uid, 'studyLogs'), orderBy('date', 'asc'), limit(365));
-        const wQ = query(collection(db, 'users', uid, 'workLogs'), orderBy('date', 'asc'), limit(365));
-        const mQ = query(collection(db, 'users', uid, 'moodLogs'), orderBy('date', 'asc'), limit(365));
-        const dQ = query(collection(db, 'users', uid, 'daily'), orderBy('date', 'asc'), limit(365));
-
-        const [hSnap, sSnap, wSnap, mSnap, dSnap] = await Promise.all([
-          getDocs(hQ), getDocs(sQ), getDocs(wQ), getDocs(mQ), getDocs(dQ)
+        const names = ['healthLogs', 'studyLogs', 'workLogs', 'moodLogs', 'daily'];
+        const snapshots = await Promise.all([
+          ...names.map(name => getDocs(query(collection(db, 'users', uid, name), orderBy('date', 'asc')))),
+          getDocs(collection(db, 'users', uid, 'learningItems')),
+          getDocs(collection(db, 'users', uid, 'workItems')),
         ]);
-
-        setHealthLogs(hSnap.docs.map(d => d.data()));
-        setStudyLogs(sSnap.docs.map(d => d.data()));
-        setWorkLogs(wSnap.docs.map(d => d.data()));
-        setMoodLogs(mSnap.docs.map(d => d.data()));
-        setDailyLogs(dSnap.docs.map(d => d.data()));
-
-      } catch (err: any) {
-        console.warn("Analytics fetch error:", err.message);
+        setHealthLogs(snapshots[0].docs.map(item => item.data()));
+        setStudyLogs(snapshots[1].docs.map(item => item.data()));
+        setWorkLogs(snapshots[2].docs.map(item => item.data()));
+        setMoodLogs(snapshots[3].docs.map(item => item.data()));
+        setDailyLogs(snapshots[4].docs.map(item => item.data()));
+        setLearningItems(snapshots[5].docs.map(item => ({ id: item.id, ...item.data() })));
+        setWorkItems(snapshots[6].docs.map(item => ({ id: item.id, ...item.data() })));
+      } catch (error: any) {
+        console.warn('Analytics fetch error:', error.message);
       } finally {
         setLoading(false);
       }
@@ -46,385 +59,137 @@ export default function Analytics() {
     fetchData();
   }, []);
 
-  const filterByTimeRange = (logs: any[]) => {
-    if (timeRange === 365) return logs; // "All time"
-    const thresholdDate = subDays(new Date(), timeRange);
-    return logs.filter(l => {
-      if (!l.date) return false;
-      const d = parseISO(l.date);
-      return isAfter(d, thresholdDate);
-    });
-  };
-
-  const filteredHealth = useMemo(() => filterByTimeRange(healthLogs), [healthLogs, timeRange]);
-  const filteredStudy = useMemo(() => filterByTimeRange(studyLogs), [studyLogs, timeRange]);
-  const filteredWork = useMemo(() => filterByTimeRange(workLogs), [workLogs, timeRange]);
-  const filteredMood = useMemo(() => filterByTimeRange(moodLogs), [moodLogs, timeRange]);
-  const filteredDaily = useMemo(() => filterByTimeRange(dailyLogs), [dailyLogs, timeRange]);
-
-  // --- HEALTH TAB ---
-  
-  // Overview
-  const currentWeight = useMemo(() => {
-    const weights = healthLogs.map(l => parseFloat(l.weight)).filter(w => w > 0);
-    return weights.length > 0 ? weights[weights.length - 1] : 0;
-  }, [healthLogs]);
-
-  const monthAvgWeight = useMemo(() => {
-    const thisMonth = new Date();
-    const weights = healthLogs
-      .filter(l => l.date && isSameMonth(parseISO(l.date), thisMonth))
-      .map(l => parseFloat(l.weight))
-      .filter(w => w > 0);
-    if (!weights.length) return 0;
-    return (weights.reduce((a, b) => a + b, 0) / weights.length).toFixed(1);
-  }, [healthLogs]);
-
-  const workoutsThisMonth = useMemo(() => {
-    const thisMonth = new Date();
-    return healthLogs.filter(l => l.date && isSameMonth(parseISO(l.date), thisMonth) && l.workoutCategory).length;
-  }, [healthLogs]);
-
-  // Weight Data
-  const weightData = useMemo(() => {
-    return filteredHealth.map(l => ({
-      date: format(parseISO(l.date), 'MMM d'),
-      weight: parseFloat(l.weight) || null,
-    })).filter(l => l.weight !== null);
-  }, [filteredHealth]);
-
-  // Mood Data
-  const moodMap: Record<string, number> = {
-    'energetic': 5,
-    'good/productive': 4,
-    'average': 3,
-    'bad/zero day': 2,
-    'awful': 1,
-  };
-  const moodLabels = ['', 'Awful', 'Bad', 'Average', 'Good', 'Energetic'];
-  
-  const combinedMoods = useMemo(() => {
-    const map = new Map();
-    filteredMood.forEach(m => map.set(m.date, m.mood));
-    filteredHealth.forEach(h => {
-      if (h.mood) map.set(h.date, h.mood);
-    });
+  const moods = useMemo(() => {
+    const map = new Map<string, string>();
+    moodLogs.forEach(log => { if (log.date && log.mood) map.set(log.date, log.mood); });
+    healthLogs.forEach(log => { if (log.date && log.mood) map.set(log.date, log.mood); });
     return Array.from(map.entries())
-      .map(([date, mood]) => ({ 
-        dateRaw: date,
-        date: format(parseISO(date), 'MMM d'), 
-        moodLevel: moodMap[mood?.toLowerCase()] || 3,
-        moodRaw: mood
-      }))
-      .sort((a, b) => new Date(a.dateRaw).getTime() - new Date(b.dateRaw).getTime());
-  }, [filteredMood, filteredHealth]);
-
-  // Mood Distribution
-  const moodDistribution = useMemo(() => {
-    const counts: Record<string, number> = {};
-    combinedMoods.forEach(m => {
-      let key = m.moodRaw || 'Unknown';
-      key = key.toLowerCase();
-      if (key === 'good/productive') key = 'Good/Calm Day';
-      if (key === 'bad/zero day') key = 'Bad/Zero Day';
-      // capitalize first
-      key = key.charAt(0).toUpperCase() + key.slice(1);
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    return Object.keys(counts).map(key => ({
-      name: key,
-      value: counts[key]
-    })).sort((a, b) => b.value - a.value);
-  }, [combinedMoods]);
-  const MOOD_COLORS = ['#4ade80', '#fbbf24', '#f87171', '#38bdf8', '#a78bfa'];
-
-  // Monthly Activity (Workouts per month in period)
-  const monthlyActivity = useMemo(() => {
-    const counts: Record<string, number> = {};
-    filteredHealth.forEach(l => {
-      if (l.workoutCategory && l.date) {
-        const m = format(parseISO(l.date), 'MMM');
-        counts[m] = (counts[m] || 0) + 1;
-      }
-    });
-    return Object.keys(counts).map(key => ({ name: key, count: counts[key] }));
-  }, [filteredHealth]);
-
-  // Goals
+      .map(([date, mood]) => ({ date, mood, score: moodScore(mood) }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [healthLogs, moodLogs]);
+  const moodMap = useMemo(() => new Map(moods.map(item => [item.date, item.score])), [moods]);
+  const workout = isWorkoutDay;
+  const weightData = useMemo(() => healthLogs.map(log => ({
+    date: format(parseISO(log.date), 'd MMM'),
+    weight: num(log.weight) || null,
+  })).filter(item => item.weight !== null), [healthLogs]);
+  const weightChartData = timeRange === 365 ? weightData : weightData.slice(-timeRange);
+  const weightValues = weightData.map(item => item.weight as number);
+  const weightDomain: [number, number] = weightValues.length
+    ? [Math.floor(Math.min(...weightValues) - 2), Math.ceil(Math.max(...weightValues) + 2)]
+    : [0, 100];
+  const moodData = moods.map(item => ({ date: format(parseISO(item.date), 'd MMM'), mood: item.score, label: moodLabel(item.mood) }));
+  const moodChartData = timeRange === 365 ? moodData : moodData.slice(-timeRange);
+  const goalData = dailyLogs.map(log => {
+    const goals = Array.isArray(log.goals) ? log.goals.filter((goal: any) => (typeof goal === 'string' ? goal : goal?.text)?.trim()) : [];
+    return {
+      date: format(parseISO(log.date), 'd MMM'),
+      completion: goals.length ? Math.round(goals.filter((goal: any) => typeof goal !== 'string' && goal.done).length / goals.length * 100) : null,
+    };
+  }).filter(item => item.completion !== null);
   const goalStats = useMemo(() => {
-    let totalGoals = 0;
-    let completedGoals = 0;
-    filteredDaily.forEach(d => {
-      if (d.goals && Array.isArray(d.goals)) {
-        d.goals.forEach((g: any) => {
-          const text = typeof g === 'string' ? g : g.text;
-          const done = typeof g === 'string' ? false : g.done;
-          if (text && text.trim()) {
-            totalGoals++;
-            if (done) completedGoals++;
-          }
-        });
-      }
-    });
-    const percent = totalGoals > 0 ? Math.round((completedGoals / totalGoals) * 100) : 0;
-    return { percent, totalGoals, completedGoals };
-  }, [filteredDaily]);
-
-  // All-time summary
-  const workoutRate = useMemo(() => {
-    const totalDays = healthLogs.length || 1;
-    const workouts = healthLogs.filter(l => l.workoutCategory).length;
+    const goals = dailyLogs.flatMap(log => Array.isArray(log.goals) ? log.goals : []).filter((goal: any) => (typeof goal === 'string' ? goal : goal?.text)?.trim());
+    const done = goals.filter((goal: any) => typeof goal !== 'string' && goal.done).length;
     return {
-      rate: Math.round((workouts / totalDays) * 100),
-      workouts,
-      totalDays
+      done,
+      total: goals.length,
+      percent: goals.length ? Math.round(done / goals.length * 100) : 0,
+      average: goalData.length ? Math.round(goalData.reduce((sum, item) => sum + Number(item.completion), 0) / goalData.length) : 0,
     };
+  }, [dailyLogs, goalData]);
+  const correlations = useMemo(() => [
+    { name: 'Weight ↔ Mood', a: 'Weight', b: 'Mood', value: pearson(healthLogs.filter(log => num(log.weight) && moodMap.has(log.date)).map(log => num(log.weight)), healthLogs.filter(log => num(log.weight) && moodMap.has(log.date)).map(log => moodMap.get(log.date) as number)) },
+    { name: 'Mood ↔ Workout', a: 'Mood', b: 'Workout', value: pearson(healthLogs.filter(log => moodMap.has(log.date)).map(log => moodMap.get(log.date) as number), healthLogs.filter(log => moodMap.has(log.date)).map(log => workout(log) ? 1 : 0)) },
+    { name: 'Weight ↔ Workout', a: 'Weight', b: 'Workout', value: pearson(healthLogs.filter(log => num(log.weight)).map(log => num(log.weight)), healthLogs.filter(log => num(log.weight)).map(log => workout(log) ? 1 : 0)) },
+  ].filter(item => item.value !== null).map(item => {
+    const value = item.value as number;
+    const strength = correlationStrength(value);
+    return { ...item, value, strength, sentence: `${item.a} and ${item.b} ${strength.toLowerCase()} tend to move ${value >= 0 ? 'together' : 'in opposite directions'} (r = ${value.toFixed(2)}).` };
+  }), [healthLogs, moodMap]);
+  const regression = useMemo(() => linearRegression(weightValues.map((weight, index) => ({ x: index, y: weight }))), [weightValues]);
+  const projectionData = regression && weightData.length ? Array.from({ length: weightData.length + 15 }, (_, index) => ({
+    date: index < weightData.length ? weightData[index].date : `+${index - weightData.length + 1}d`,
+    actual: index < weightData.length ? weightData[index].weight : null,
+    projected: regression.predict(index),
+  })) : [];
+  const projections = regression && weightData.length ? [regression.predict(weightData.length + 7), regression.predict(weightData.length + 14)] : [];
+  const trendLabel = regression ? regression.slope > 0.01 ? '↑ Rising' : regression.slope < -0.01 ? '↓ Falling' : '→ Stable' : '→ Stable';
+  const monthlyActivity = useMemo(() => {
+    const counts = new Map<string, number>();
+    healthLogs.filter(log => log.date && workout(log)).forEach(log => counts.set(log.date.slice(0, 7), (counts.get(log.date.slice(0, 7)) || 0) + 1));
+    return Array.from(counts.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, count]) => ({ name: format(parseISO(`${key}-01`), 'MMM'), count }));
   }, [healthLogs]);
-
-  const positiveDays = useMemo(() => {
-    const total = combinedMoods.length || 1;
-    const positive = combinedMoods.filter(m => m.moodLevel >= 4).length;
+  const moodDistribution = useMemo(() => {
+    const counts = new Map<string, number>();
+    moods.forEach(item => counts.set(moodLabel(item.mood), (counts.get(moodLabel(item.mood)) || 0) + 1));
+    return Array.from(counts.entries()).map(([name, value]) => ({ name, value, color: MOODS.find(mood => mood.text === name)?.color || '#6b7280' })).sort((a, b) => b.value - a.value);
+  }, [moods]);
+  const lifestyle = useMemo(() => [
+    { key: 'sleep' as const, label: 'Sleep', buckets: ['<4h', '4-6h', '6h+'] },
+    { key: 'water' as const, label: 'Water', buckets: ['<1L', '1L-2L', '2L+'] },
+    { key: 'steps' as const, label: 'Steps', buckets: ['<5k', '5-10k', '10k+'] },
+    { key: 'screen' as const, label: 'Screen time', buckets: ['<4h', '4-8h', '8h+'] },
+  ].map(definition => ({
+    ...definition,
+    counts: definition.buckets.map(bucket => ({ bucket, count: healthLogs.filter(log => metricBucket(log, definition.key) === bucket).length })),
+  })), [healthLogs]);
+  const nutrition = useMemo(() => [
+    { label: 'Home-cooked', field: 'foodHome' },
+    { label: 'Outside food', field: 'foodOutside' },
+    { label: 'Healthy outside', field: 'foodHealthyOutside' },
+  ].map(item => ({ ...item, count: healthLogs.filter(log => Array.isArray(log[item.field]) && log[item.field].length > 0).length })), [healthLogs]);
+  const study = useMemo(() => {
+    const withProgress = learningItems.filter(item => num(item.progressTotal) > 0);
     return {
-      rate: Math.round((positive / total) * 100),
-      positive,
-      total
+      statusCounts: ['In progress', 'Completed', 'Paused'].map(status => ({ status, count: learningItems.filter(item => item.status === status).length })),
+      completion: withProgress.length ? Math.round(withProgress.reduce((sum, item) => sum + Math.min(100, num(item.progressCurrent) / num(item.progressTotal) * 100), 0) / withProgress.length) : 0,
+      averageEnjoyment: studyLogs.filter(log => num(log.studyEnjoyment) > 0).reduce((sum, log, _, arr) => sum + num(log.studyEnjoyment) / arr.length, 0),
+      enjoyed: learningItems.filter(item => num(item.enjoyment) >= 4),
+      timeline: [...learningItems].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))),
+      categoryCounts: Array.from(new Set(learningItems.map(item => item.category).filter(Boolean))).map(category => ({ category, count: learningItems.filter(item => item.category === category).length })),
     };
-  }, [combinedMoods]);
-
-  // Project weight
-  const projectedWeight = useMemo(() => {
-    if (weightData.length < 2) return currentWeight;
-    const first = weightData[0].weight;
-    const last = weightData[weightData.length - 1].weight;
-    const diff = last - first;
-    return (last + (diff / weightData.length) * 7).toFixed(1);
-  }, [weightData, currentWeight]);
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-[#111111] border border-gray-800 p-2 rounded text-xs text-gray-300">
-          <p className="mb-1">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color }} className="font-mono">
-              {entry.value}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
+  }, [learningItems, studyLogs]);
+  const work = useMemo(() => ({
+    statusCounts: ['In progress', 'Completed', 'Paused'].map(status => ({ status, count: workItems.filter(item => item.status === status).length })),
+    averageEnjoyment: workLogs.filter(log => num(log.workEnjoyment) > 0).reduce((sum, log, _, arr) => sum + num(log.workEnjoyment) / arr.length, 0),
+    enjoyed: workItems.filter(item => num(item.enjoyment) >= 4),
+    disliked: workItems.filter(item => num(item.enjoyment) > 0 && num(item.enjoyment) <= 2),
+    timeline: [...workItems].sort((a, b) => String(b.startDate).localeCompare(String(a.startDate))),
+  }), [workItems, workLogs]);
+  const chart = (data: any[], key: string, color: string, domain?: [number, number]) => (
+    <ResponsiveContainer width="100%" height="100%">
+      <LineChart data={data} margin={{ top: 15, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid stroke="#1a2030" strokeOpacity={1} /><XAxis dataKey="date" stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} tickMargin={10} minTickGap={30} /><YAxis domain={domain} allowDecimals={key !== 'weight'} stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} tickMargin={8} /><Tooltip content={<ChartTooltip />} /><Line type="monotone" dataKey={key} stroke={color} strokeWidth={1.5} dot={false} activeDot={{ r: 3, fill: color }} />
+      </LineChart>
+    </ResponsiveContainer>
+  );
+  const card = (label: string, value: string | number, detail?: string) => <div className={cardClass}><div className="text-[10px] tracking-[0.15em] uppercase text-text-tertiary mb-2">{label}</div><div className="font-mono text-[22px] text-text-primary leading-tight">{value}</div>{detail && <div className="mt-1 text-[11px] text-text-tertiary">{detail}</div>}</div>;
+  const itemList = (items: any[], empty: string) => items.length ? <div className="space-y-2">{items.slice(0, 8).map(item => <div key={item.id} className="rounded-lg border-[0.5px] border-border-subtle bg-bg-primary/40 px-3 py-3"><div className="flex items-center justify-between gap-3"><span className="text-sm text-text-primary">{item.title}</span><span className="font-mono text-[10px] text-text-tertiary">{item.enjoyment}/5</span></div><div className="mt-1 text-[9px] tracking-widest uppercase text-text-tertiary">{item.category} · {item.status}</div></div>)}</div> : <p className="text-xs text-text-tertiary">{empty}</p>;
 
   return (
-    <div className="pb-8">
-      <div className="max-w-6xl mx-auto p-6 space-y-8">
-        
-        {/* TABS & TIME RANGE */}
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex gap-2">
-            {['Health', 'Study', 'Work'].map(tab => (
-              <button 
-                key={tab}
-                onClick={() => setActiveTab(tab as any)}
-                className={`px-4 py-2 text-[10px] tracking-widest uppercase rounded-md transition-colors ${
-                  activeTab === tab ? 'bg-gray-800 text-gray-100' : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex bg-[#111111] rounded p-1 border border-gray-800">
-            {[
-              { label: '7D', val: 7 },
-              { label: '30D', val: 30 },
-              { label: 'ALL', val: 365 },
-            ].map(t => (
-              <button
-                key={t.val}
-                onClick={() => setTimeRange(t.val as any)}
-                className={`px-4 py-1.5 text-[10px] tracking-widest uppercase rounded transition-colors ${
-                  timeRange === t.val 
-                    ? 'bg-gray-800 text-gray-100' 
-                    : 'text-gray-500 hover:text-gray-300'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="text-center text-gray-600 py-20 text-xs tracking-widest uppercase animate-pulse">
-            Loading Analytics...
-          </div>
-        ) : (
-          <>
-            {activeTab === 'Health' && (
-              <div className="space-y-12 animate-in fade-in duration-500">
-                
-                {/* OVERVIEW */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                    <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Current</div>
-                    <div className="text-3xl text-orange-200/90 font-light">{currentWeight || '--'}</div>
-                    <div className="text-[10px] text-gray-600 mt-1">kg today</div>
-                  </div>
-                  <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                    <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Month Avg</div>
-                    <div className="text-3xl text-gray-200 font-light">{monthAvgWeight || '--'}</div>
-                    <div className="text-[10px] text-gray-600 mt-1">kg</div>
-                  </div>
-                  <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                    <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Workouts</div>
-                    <div className="text-3xl text-teal-400/80 font-light">{workoutsThisMonth}</div>
-                    <div className="text-[10px] text-gray-600 mt-1">this month</div>
-                  </div>
-                </div>
-
-                {/* WEIGHT TREND */}
-                <section className="space-y-4">
-                  <h2 className="text-[10px] tracking-[0.2em] uppercase text-gray-500 ml-1">Weight Trend</h2>
-                  <div className="bg-[#0a0a0a] border-y border-gray-800 p-2 h-64 -mx-6 px-6">
-                    {weightData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={weightData} margin={{ top: 20, right: 0, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="0" stroke="#1f2937" vertical={true} horizontal={true} />
-                          <XAxis dataKey="date" stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} tickMargin={10} minTickGap={30} />
-                          <YAxis stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} domain={['dataMin - 0.5', 'dataMax + 0.5']} />
-                          <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: '#374151' }} />
-                          <Line type="monotone" dataKey="weight" name="kg" stroke="#fcd34d" strokeWidth={1.5} dot={false} activeDot={{ r: 4, fill: '#fcd34d' }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : <div className="text-center text-xs text-gray-600 py-10">No data</div>}
-                  </div>
-                </section>
-
-                {/* MOOD JOURNEY */}
-                <section className="space-y-4">
-                  <h2 className="text-[10px] tracking-[0.2em] uppercase text-gray-500 ml-1">Mood Journey</h2>
-                  <div className="bg-[#0a0a0a] border-y border-gray-800 p-2 h-64 -mx-6 px-6">
-                    {combinedMoods.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={combinedMoods} margin={{ top: 20, right: 0, left: -25, bottom: 0 }}>
-                          <CartesianGrid strokeDasharray="0" stroke="#1f2937" vertical={true} horizontal={true} />
-                          <XAxis dataKey="date" stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} tickMargin={10} minTickGap={30} />
-                          <YAxis stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={() => ''} />
-                          <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: '#374151' }} />
-                          <Line type="step" dataKey="moodLevel" name="Mood" stroke="#2dd4bf" strokeWidth={1.5} dot={{ r: 2, fill: '#fcd34d', stroke: 'none' }} activeDot={{ r: 4, fill: '#2dd4bf' }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    ) : <div className="text-center text-xs text-gray-600 py-10">No data</div>}
-                  </div>
-                </section>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                  {/* MONTHLY ACTIVITY */}
-                  <section className="space-y-4">
-                    <h2 className="text-[10px] tracking-[0.2em] uppercase text-gray-500 ml-1">Monthly Activity</h2>
-                    <div className="bg-[#0a0a0a] border-y md:border md:rounded-lg border-gray-800 p-4 h-64 -mx-6 md:mx-0 px-6 md:px-4">
-                      {monthlyActivity.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={monthlyActivity} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
-                            <CartesianGrid strokeDasharray="0" stroke="#1f2937" vertical={true} horizontal={true} />
-                            <XAxis dataKey="name" stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} tickMargin={10} />
-                            <YAxis stroke="#4b5563" fontSize={9} tickLine={false} axisLine={false} />
-                            <RechartsTooltip content={<CustomTooltip />} cursor={{ fill: '#1f2937' }} />
-                            <Bar dataKey="count" name="Workouts" fill="#4b6b63" radius={[2, 2, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      ) : <div className="text-center text-xs text-gray-600 py-10">No data</div>}
-                    </div>
-                  </section>
-
-                  {/* MOOD DISTRIBUTION */}
-                  <section className="space-y-4">
-                    <h2 className="text-[10px] tracking-[0.2em] uppercase text-gray-500 ml-1">Mood Distribution</h2>
-                    <div className="bg-[#111] border-y md:border md:rounded-lg border-gray-800 p-6 flex flex-row items-center gap-8 -mx-6 md:mx-0 h-64">
-                      {moodDistribution.length > 0 ? (
-                        <>
-                          <div className="w-1/2 h-full relative">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={moodDistribution}
-                                  cx="50%"
-                                  cy="50%"
-                                  innerRadius="60%"
-                                  outerRadius="80%"
-                                  paddingAngle={2}
-                                  dataKey="value"
-                                  stroke="none"
-                                >
-                                  {moodDistribution.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={MOOD_COLORS[index % MOOD_COLORS.length]} />
-                                  ))}
-                                </Pie>
-                              </PieChart>
-                            </ResponsiveContainer>
-                          </div>
-                          <div className="w-1/2 space-y-3">
-                            {moodDistribution.map((entry, i) => {
-                              const total = moodDistribution.reduce((a, b) => a + b.value, 0);
-                              const pct = Math.round((entry.value / total) * 100);
-                              return (
-                                <div key={entry.name} className="flex items-center justify-between text-xs">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: MOOD_COLORS[i % MOOD_COLORS.length] }} />
-                                    <span className="text-gray-400">{entry.name}</span>
-                                  </div>
-                                  <span className="text-gray-300 font-mono">{pct}%</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </>
-                      ) : <div className="text-center text-xs text-gray-600 py-10 w-full">No data</div>}
-                    </div>
-                  </section>
-                </div>
-
-                {/* ALL-TIME SUMMARY & GOALS */}
-                <section className="space-y-4">
-                  <h2 className="text-[10px] tracking-[0.2em] uppercase text-gray-500 ml-1">All-Time Summary</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                      <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Workout Rate</div>
-                      <div className="text-3xl text-teal-400/80 font-light">{workoutRate.rate}%</div>
-                      <div className="text-[10px] text-gray-600 mt-1">{workoutRate.workouts} of {workoutRate.totalDays} days</div>
-                    </div>
-                    <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                      <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Positive Days</div>
-                      <div className="text-3xl text-emerald-400/80 font-light">{positiveDays.rate}%</div>
-                      <div className="text-[10px] text-gray-600 mt-1">{positiveDays.positive} of {positiveDays.total} days good or energetic</div>
-                    </div>
-                    <div className="bg-[#111] border border-gray-800 p-5 rounded-lg">
-                      <div className="text-[10px] tracking-widest uppercase text-gray-500 mb-2">Goals Achieved</div>
-                      <div className="text-3xl text-amber-200/90 font-light">{goalStats.percent}%</div>
-                      <div className="text-[10px] text-gray-600 mt-1">{goalStats.completedGoals} of {goalStats.totalGoals} goals completed</div>
-                    </div>
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {activeTab === 'Study' && (
-              <div className="text-center text-gray-500 py-20 text-xs tracking-widest uppercase">
-                Study metrics (Coming Soon)
-              </div>
-            )}
-            
-            {activeTab === 'Work' && (
-              <div className="text-center text-gray-500 py-20 text-xs tracking-widest uppercase">
-                Work metrics (Coming Soon)
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </div>
+    <div className="pb-24"><div className="max-w-6xl mx-auto p-5 sm:p-6 space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-2">{(['Health', 'Study', 'Work'] as const).map(tab => <button key={tab} onClick={() => setActiveTab(tab)} className={`rounded-lg px-4 py-2 text-[10px] tracking-[0.16em] uppercase transition-colors ${activeTab === tab ? 'bg-accent-amber text-[#1a0f07]' : 'border-[0.5px] border-border-subtle text-text-tertiary hover:text-text-primary'}`}>{tab}</button>)}</div><div className="flex w-fit gap-1 rounded-lg border-[0.5px] border-border-subtle bg-bg-secondary p-1">{[{ label: '7D', value: 7 }, { label: '30D', value: 30 }, { label: 'ALL', value: 365 }].map(item => <button key={item.value} onClick={() => setTimeRange(item.value as 7 | 30 | 365)} className={`rounded px-3 py-1.5 text-[10px] font-mono tracking-widest uppercase ${timeRange === item.value ? 'bg-bg-tertiary text-text-primary' : 'text-text-tertiary'}`}>{item.label}</button>)}</div></div>
+      {loading ? <div className="py-20 text-center text-xs tracking-widest uppercase text-text-tertiary animate-pulse">Loading analytics...</div> : activeTab === 'Health' ? <div className="space-y-10">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{card('Current', weightData.length ? `${weightData[weightData.length - 1].weight}` : '--', 'kg')}{card('Range average', weightValues.length ? (weightValues.reduce((sum, value) => sum + value, 0) / weightValues.length).toFixed(1) : '--', 'kg')}{card('Workouts', healthLogs.filter(workout).length, 'all recorded days')}{card('Goals avg', `${goalStats.average}%`, 'per logged day')}</div>
+        <section><h2 className={sectionTitle}>Weight Trend</h2><div className="mt-3 h-60">{weightChartData.length ? chart(weightChartData, 'weight', '#c8925a', weightDomain) : <div className="py-10 text-center text-xs text-text-tertiary">No weight data.</div>}</div></section>
+        <section><h2 className={sectionTitle}>Mood Journey</h2><div className="mt-3 h-60">{moodChartData.length ? <ResponsiveContainer width="100%" height="100%"><LineChart data={moodChartData} margin={{ top: 15, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="#1a2030" strokeOpacity={1} /><XAxis dataKey="date" stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} tickMargin={10} minTickGap={30} /><YAxis domain={[1, 5]} ticks={[1, 2, 3, 4, 5]} tickFormatter={() => ''} stroke="#3a3a3a" fontSize={10} tickLine={false} axisLine={false} /><Tooltip content={<ChartTooltip />} /><Line type="monotone" dataKey="mood" stroke="#5a9e8f" strokeWidth={1.5} dot={false} activeDot={{ r: 3, fill: '#5a9e8f' }} /></LineChart></ResponsiveContainer> : <div className="py-10 text-center text-xs text-text-tertiary">No mood data.</div>}</div></section>
+        <section><h2 className={sectionTitle}>Lifestyle distributions</h2><div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">{lifestyle.map(metric => { const max = Math.max(1, ...metric.counts.map(item => item.count)); return <div key={metric.key} className={`${cardClass} space-y-3`}><h3 className="text-xs text-text-primary">{metric.label}</h3>{metric.counts.map(item => <div key={item.bucket} className="space-y-1"><div className="flex justify-between text-[10px] text-text-tertiary"><span>{item.bucket}</span><span>{item.count} days</span></div><div className="h-2 overflow-hidden rounded-full bg-bg-tertiary"><div className="h-full rounded-full bg-accent-teal" style={{ width: `${item.count / max * 100}%` }} /></div></div>)}</div>; })}</div></section>
+        <section><h2 className={sectionTitle}>Goals Completion</h2><div className="mt-3 h-56">{goalData.length ? <ResponsiveContainer width="100%" height="100%"><BarChart data={goalData} margin={{ top: 15, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="#1a2030" strokeOpacity={1} /><XAxis dataKey="date" stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} tickMargin={10} minTickGap={30} /><YAxis domain={[0, 100]} stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} /><Tooltip content={<ChartTooltip />} cursor={false} /><Bar dataKey="completion" fill="#c8925a" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer> : <div className="py-10 text-center text-xs text-text-tertiary">No goals logged in this range.</div>}</div></section>
+        <section><h2 className={sectionTitle}>Monthly Activity & Mood Distribution</h2><div className="mt-3 grid gap-3 md:grid-cols-2"><div className={`${cardClass} h-72`}><h3 className={sectionTitle}>Monthly Activity</h3>{monthlyActivity.length ? <ResponsiveContainer width="100%" height="90%"><BarChart data={monthlyActivity} margin={{ top: 15, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="#1a2030" strokeOpacity={1} /><XAxis dataKey="name" stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} /><YAxis stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} allowDecimals={false} /><Tooltip content={<ChartTooltip />} cursor={false} /><Bar dataKey="count" fill="#5a9e8f" radius={[5, 5, 0, 0]} stroke="#5a9e8f" strokeWidth={1}>{monthlyActivity.map(item => <Cell key={item.name} fill="#5a9e8f" fillOpacity={Math.max(0.2, item.count / 20)} />)}</Bar></BarChart></ResponsiveContainer> : <div className="py-10 text-center text-xs text-text-tertiary">No workouts in this range.</div>}</div><div className={`${cardClass} flex h-72 items-center gap-4`}><div className="h-full w-1/2">{moodDistribution.length ? <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={moodDistribution} innerRadius="62%" outerRadius="78%" dataKey="value" paddingAngle={2} stroke="none">{moodDistribution.map(item => <Cell key={item.name} fill={`${item.color}bb`} stroke={item.color} strokeWidth={1} />)}</Pie></PieChart></ResponsiveContainer> : null}</div><div className="w-1/2 space-y-3">{moodDistribution.length ? moodDistribution.map(item => <div key={item.name} className="flex items-center justify-between gap-2 text-xs"><span className="flex items-center gap-2 text-text-secondary"><span className="h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.name}</span><span className="font-mono text-text-tertiary">{Math.round(item.value / moods.length * 100)}%</span></div>) : <span className="text-xs text-text-tertiary">No mood data.</span>}</div></div></div></section>
+        <section><h2 className={sectionTitle}>Correlations</h2><div className="mt-3 grid gap-3 md:grid-cols-3">{correlations.length ? correlations.map(item => <div key={item.name} className={`${cardClass} space-y-3`}><div className="text-[10px] tracking-widest uppercase text-text-tertiary">{item.name}</div><div className="relative h-[3px] rounded-full bg-border-subtle"><span className="absolute left-1/2 top-[-2px] h-[7px] w-px bg-border-strong" /><span className={`absolute top-0 h-full rounded-full ${item.value >= 0 ? 'bg-accent-teal' : 'bg-accent-red'}`} style={{ left: item.value >= 0 ? '50%' : `${50 + item.value * 50}%`, width: `${Math.abs(item.value) * 50}%` }} /></div><div className="flex items-baseline justify-between"><span className={`font-mono text-xl ${item.value >= 0 ? 'text-accent-teal' : 'text-accent-red'}`}>r = {item.value.toFixed(2)}</span><span className="text-[11px] text-text-secondary">{item.strength}</span></div><p className="text-xs leading-relaxed text-text-tertiary">{item.sentence}</p></div>) : <p className="text-xs text-text-tertiary">Not enough aligned data for correlations.</p>}</div></section>
+        <section><h2 className={sectionTitle}>Weight Projection</h2><div className="mt-3 grid gap-3 md:grid-cols-2"><div className={`${cardClass} h-64 md:col-span-2`}>{projectionData.length ? <ResponsiveContainer width="100%" height="100%"><LineChart data={projectionData} margin={{ top: 15, right: 8, left: -20, bottom: 0 }}><CartesianGrid stroke="#1a2030" strokeOpacity={1} /><XAxis dataKey="date" stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} minTickGap={30} /><YAxis domain={weightDomain} allowDecimals={false} stroke="#3a3a3a" fontSize={10} tick={{ fontFamily: 'Space Mono' }} tickLine={false} axisLine={false} /><Tooltip content={<ChartTooltip />} /><Line name="Actual" dataKey="actual" stroke="#c8925a" strokeWidth={1.5} dot={false} activeDot={{ r: 3, fill: '#c8925a' }} /><Line name="Projected" dataKey="projected" stroke="#8b7ec8" strokeWidth={1.5} strokeDasharray="5 5" dot={false} activeDot={{ r: 3, fill: '#8b7ec8' }} /></LineChart></ResponsiveContainer> : <div className="py-10 text-center text-xs text-text-tertiary">Not enough weight data.</div>}</div>{card('+7 days', projections.length ? `${projections[0].toFixed(1)} kg` : '--')}{card('+14 days', projections.length ? `${projections[1].toFixed(1)} kg` : '--')}</div><div className="mt-3 text-sm text-text-secondary">Current trend: <span className="font-mono text-text-primary">{trendLabel}</span>.</div><p className="proj-note mt-2 text-xs leading-relaxed text-text-tertiary">Based on linear regression across all recorded weights. Assumes habits remain constant.</p><div className="chart-legend mt-3 flex gap-4 text-[11px] text-text-secondary"><span className="flex items-center gap-2"><span className="h-[3px] w-3 rounded bg-accent-amber" />Actual</span><span className="flex items-center gap-2"><span className="h-[3px] w-3 rounded bg-[#8b7ec8]" />Projected</span></div></section>
+        <section><h2 className={sectionTitle}>Nutrition Insights</h2><div className="mt-3 grid gap-3 md:grid-cols-3">{nutrition.map(item => <Fragment key={item.label}>{card(item.label, item.count, 'days logged')}</Fragment>)}</div></section>
+        <section><h2 className={sectionTitle}>All-Time Summary</h2><div className="mt-3 grid gap-3 md:grid-cols-3">{card('Workout Rate', `${healthLogs.length ? Math.round(healthLogs.filter(workout).length / healthLogs.length * 100) : 0}%`)}{card('Positive Days', `${moods.length ? Math.round(moods.filter(item => item.score >= 4).length / moods.length * 100) : 0}%`)}{card('Goals Achieved', `${goalStats.percent}%`, `${goalStats.done} of ${goalStats.total} goals`)}</div></section>
+      </div> : activeTab === 'Study' ? <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{study.statusCounts.map(item => <Fragment key={`study-${item.status}`}>{card(item.status, item.count)}</Fragment>)}{card('Completion', `${study.completion}%`, 'average tracked progress')}</div>
+        <div className="grid gap-4 md:grid-cols-2"><section className={`${cardClass} space-y-4`}><h2 className={sectionTitle}>Most enjoyed learning</h2>{itemList(study.enjoyed, 'Rate learning items 4 or 5 to see them here.')}</section><section className={`${cardClass} space-y-4`}><h2 className={sectionTitle}>Category breakdown</h2>{study.categoryCounts.length ? study.categoryCounts.map(item => <div key={item.category} className="flex justify-between border-b-[0.5px] border-border-subtle py-2 text-sm"><span>{item.category}</span><span className="font-mono text-text-tertiary">{item.count}</span></div>) : <p className="text-xs text-text-tertiary">No learning items yet.</p>}</section></div>
+        <section className={`${cardClass} space-y-4`}><div className="flex items-center justify-between"><h2 className={sectionTitle}>Learning timeline</h2><span className="text-xs text-text-tertiary">{study.averageEnjoyment ? `Daily enjoyment ${study.averageEnjoyment.toFixed(1)}/5` : ''}</span></div>{study.timeline.length ? <div className="space-y-3">{study.timeline.map(item => <div key={item.id} className="flex gap-3 border-b-[0.5px] border-border-subtle pb-3 last:border-0"><div className="w-20 shrink-0 font-mono text-[10px] tracking-widest text-text-tertiary">{item.startDate || '—'}</div><div><div className="text-sm text-text-primary">{item.title}</div><div className="mt-1 text-[9px] tracking-widest uppercase text-text-tertiary">{item.category} · {item.status}</div></div></div>)}</div> : <p className="text-xs text-text-tertiary">No learning items yet. Add books, courses, topics, or skills from the Log tab.</p>}</section>
+      </div> : <div className="space-y-8">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{work.statusCounts.map(item => <Fragment key={`work-${item.status}`}>{card(item.status, item.count)}</Fragment>)}{card('Daily enjoyment', work.averageEnjoyment ? work.averageEnjoyment.toFixed(1) : '--', 'out of 5')}</div>
+        <div className="grid gap-4 md:grid-cols-2"><section className={`${cardClass} space-y-4`}><h2 className={sectionTitle}>Most enjoyed work</h2>{itemList(work.enjoyed, 'Rate work items 4 or 5 to see them here.')}</section><section className={`${cardClass} space-y-4`}><h2 className={sectionTitle}>Least enjoyed work</h2>{itemList(work.disliked, 'No low-rated work items yet.')}</section></div>
+        <section className={`${cardClass} space-y-4`}><h2 className={sectionTitle}>Work timeline</h2>{work.timeline.length ? <div className="space-y-3">{work.timeline.map(item => <div key={item.id} className="flex gap-3 border-b-[0.5px] border-border-subtle pb-3 last:border-0"><div className="w-20 shrink-0 font-mono text-[10px] tracking-widest text-text-tertiary">{item.startDate || '—'}</div><div><div className="text-sm text-text-primary">{item.title}</div><div className="mt-1 text-[9px] tracking-widest uppercase text-text-tertiary">{item.category} · {item.status} · {item.enjoyment}/5</div></div></div>)}</div> : <p className="text-xs text-text-tertiary">No work items yet. Add projects, tasks, or networking from the Log tab.</p>}</section>
+        <section><h2 className={sectionTitle}>Daily Work Enjoyment</h2><div className="mt-3 h-56">{workLogs.some(log => num(log.workEnjoyment) > 0) ? chart(workLogs.filter(log => num(log.workEnjoyment) > 0).map(log => ({ date: format(parseISO(log.date), 'd MMM'), enjoyment: num(log.workEnjoyment) })), 'enjoyment', '#e07a5f', [1, 5]) : <div className="py-10 text-center text-xs text-text-tertiary">Start rating daily work to see a trend.</div>}</div></section>
+      </div>}
+    </div></div>
   );
 }

@@ -1,9 +1,14 @@
 import { useState, useEffect } from 'react';
-import { collection, query, getDocs, doc, setDoc, writeBatch } from 'firebase/firestore';
+import { useNavigate } from 'react-router-dom';
+import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, reAuthWithGoogle } from '../App';
-import { appendToSheet, getUserSpreadsheetId, fetchSheetData } from '../lib/sheets';
+import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
+import { isWorkoutDay, metricBucket } from '../lib/insights';
+import { MOODS, moodScore } from '../lib/moods';
+import { format, parseISO } from 'date-fns';
 
 export default function History() {
+  const navigate = useNavigate();
   const [groupedLogs, setGroupedLogs] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -13,6 +18,9 @@ export default function History() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
+  const [learningItems, setLearningItems] = useState<any[]>([]);
+  const [workItems, setWorkItems] = useState<any[]>([]);
+  const [filterText, setFilterText] = useState('');
 
   const fetchLogsLocal = async () => {
     if (!auth.currentUser) return;
@@ -24,10 +32,15 @@ export default function History() {
       const wQ = query(collection(db, 'users', uid, 'workLogs'));
       const mQ = query(collection(db, 'users', uid, 'moodLogs'));
       const dQ = query(collection(db, 'users', uid, 'daily'));
+      const learningQ = query(collection(db, 'users', uid, 'learningItems'));
+      const workItemsQ = query(collection(db, 'users', uid, 'workItems'));
 
-      const [hSnap, sSnap, wSnap, mSnap, dSnap] = await Promise.all([
-        getDocs(hQ), getDocs(sQ), getDocs(wQ), getDocs(mQ), getDocs(dQ)
+      const [hSnap, sSnap, wSnap, mSnap, dSnap, learningSnap, workItemsSnap] = await Promise.all([
+        getDocs(hQ), getDocs(sQ), getDocs(wQ), getDocs(mQ), getDocs(dQ),
+        getDocs(learningQ), getDocs(workItemsQ),
       ]);
+      setLearningItems(learningSnap.docs.map(item => ({ id: item.id, ...item.data() })));
+      setWorkItems(workItemsSnap.docs.map(item => ({ id: item.id, ...item.data() })));
 
       const groups: Record<string, any> = {};
 
@@ -62,7 +75,6 @@ export default function History() {
     async function fetchLogs() {
       if (!auth.currentUser) return;
       try {
-        const uid = auth.currentUser.uid;
         const sid = await getUserSpreadsheetId();
         if (sid) setSheetId(sid);
       } catch (err: any) {
@@ -264,7 +276,8 @@ export default function History() {
           batch.set(doc(db, 'users', uid, 'healthLogs', dateStr), {
             date: dateStr,
             weight: weight,
-            workoutCategory: workout,
+            workoutCategory: workout.toLowerCase().startsWith('no') ? '' : workout,
+            workoutDone: Number(row[6]) || 0,
             updatedAt: new Date()
           }, { merge: true });
           operationsInBatch++;
@@ -349,11 +362,26 @@ export default function History() {
     });
   };
 
+  const moodDotColor = (mood?: string) =>
+    MOODS.find(option => moodScore(option.key) === moodScore(mood))?.color || '#4a4a4a';
+  const visibleHistory = Object.values(groupedLogs).filter((log: any) => {
+    const term = filterText.trim().toLowerCase();
+    if (!term) return true;
+    const searchable = [
+      log.date,
+      log.health?.mood,
+      log.mood?.mood,
+      log.health?.workoutCategory,
+      ...(Array.isArray(log.health?.workoutCategories) ? log.health.workoutCategories : []),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return searchable.includes(term);
+  });
+
   return (
-    <div className="p-6 pb-24 max-w-xl mx-auto space-y-8 text-text-primary">
+    <div className="pb-24 text-text-primary">
       {confirmDialog && (
         <div className="fixed inset-0 z-50 bg-bg-primary/80 flex items-center justify-center p-4">
-          <div className="bg-bg-secondary border border-bg-tertiary rounded-xl p-6 max-w-sm w-full space-y-6 shadow-2xl">
+          <div className="bg-bg-secondary border-[0.5px] border-border-strong rounded-[10px] p-6 max-w-sm w-full space-y-6 shadow-2xl">
             <p className="text-sm">{confirmDialog.message}</p>
             <div className="flex justify-end gap-4">
               <button onClick={() => setConfirmDialog(null)} className="text-xs uppercase tracking-widest text-text-tertiary hover:text-text-primary transition-colors px-4 py-2">
@@ -396,15 +424,15 @@ export default function History() {
         </div>
       )}
       
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-serif text-3xl tracking-widest uppercase">History</h1>
+      <div className="px-5 pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-serif text-3xl font-light tracking-[0.2em] uppercase">History</h1>
         <div className="flex items-center gap-2">
           {sheetId && (
             <a 
               href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] tracking-widest uppercase px-4 py-2 bg-accent-teal/10 text-accent-teal border border-accent-teal/30 rounded-lg hover:bg-accent-teal/20 transition-colors"
+              className="text-[10px] tracking-widest uppercase px-4 py-2 bg-accent-teal/10 text-accent-teal border-[0.5px] border-accent-teal/30 rounded-lg hover:bg-accent-teal/20 transition-colors"
             >
               Open Sheet
             </a>
@@ -412,18 +440,27 @@ export default function History() {
           <button
             onClick={importLegacyData}
             disabled={importing || loading}
-            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border border-bg-tertiary rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
+            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border-[0.5px] border-border-subtle rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
           >
             {importing ? 'Importing...' : 'Import Data'}
           </button>
           <button
             onClick={exportAllToSheets}
             disabled={exporting || loading || Object.keys(groupedLogs).length === 0}
-            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border border-bg-tertiary rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
+            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border-[0.5px] border-border-subtle rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
           >
             {exporting ? 'Exporting...' : 'Export All'}
           </button>
         </div>
+      </div>
+
+      <div className="px-5 pb-4">
+        <input
+          value={filterText}
+          onChange={event => setFilterText(event.target.value)}
+          placeholder="Filter by mood, date, workout…"
+          className="w-full rounded-lg border-[0.5px] border-border-subtle bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-strong"
+        />
       </div>
 
       {loading ? (
@@ -433,88 +470,143 @@ export default function History() {
       ) : (
         <div className="space-y-4">
           {Object.entries(
-            Object.values(groupedLogs).reduce((acc: any, log: any) => {
+            visibleHistory.reduce((acc: any, log: any) => {
               const [year, month] = log.date.split('-');
-              const dateObj = new Date(parseInt(year), parseInt(month) - 1, 1);
+              const dateObj = new Date(Number(year), Number(month) - 1, 1);
               const monthStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
               if (!acc[monthStr]) acc[monthStr] = [];
               acc[monthStr].push(log);
               return acc;
             }, {})
           ).map(([monthStr, logs]: [string, any]) => (
-            <div key={monthStr} className="space-y-4">
-              <h2 className="text-xs font-semibold tracking-[3px] uppercase text-text-tertiary mt-8 mb-4 border-b border-bg-tertiary pb-2">{monthStr}</h2>
-              {logs.map((log: any) => (
-            <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-xl overflow-hidden transition-all">
-              <button 
-                onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
-                className="w-full p-4 flex items-center justify-between text-left focus:outline-none"
-              >
-                <span className="text-sm font-semibold tracking-widest uppercase">{log.date}</span>
-                <span className="text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
-              </button>
-              
-              {expandedDate === log.date && (
-                <div className="px-4 pb-4 space-y-6 text-sm text-text-secondary border-t border-bg-tertiary pt-4">
-                  
-                  {log.daily?.goals && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-amber uppercase tracking-[2px] mb-2 font-semibold">Goals</h3>
-                      <ul className="list-disc pl-4 space-y-1">
-                        {log.daily.goals.map((g: any, i: number) => {
-                          const text = typeof g === 'string' ? g : g.text;
-                          const done = typeof g === 'string' ? false : g.done;
-                          return text?.trim() ? (
-                            <li key={i} className={done ? 'line-through text-text-tertiary' : ''}>{text}</li>
-                          ) : null;
-                        })}
-                      </ul>
+            <div key={monthStr} className="space-y-0">
+              <h2 className="px-5 pt-5 pb-3 text-[10px] font-medium tracking-[0.25em] uppercase text-text-tertiary border-b-[0.5px] border-border-subtle">{monthStr}</h2>
+              {logs.map((log: any) => {
+                const mood = log.health?.mood || log.mood?.mood;
+                const goals = (log.daily?.goals || []).filter((goal: any) => (typeof goal === 'string' ? goal : goal?.text)?.trim());
+                const completedGoals = goals.filter((goal: any) => typeof goal !== 'string' && goal.done).length;
+                const dayLearningItems = learningItems.filter(item => item.updatedDate === log.date);
+                const dayWorkItems = workItems.filter(item => item.updatedDate === log.date);
+                const hasDetails = log.health || log.study || log.work || log.mood || log.daily || dayLearningItems.length || dayWorkItems.length;
+                return (
+                  <div key={log.date} className="bg-bg-primary border-b-[0.5px] border-border-subtle overflow-hidden transition-all">
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
+                      onKeyDown={event => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setExpandedDate(expandedDate === log.date ? null : log.date);
+                        }
+                      }}
+                      className="w-full px-5 py-3 flex items-center gap-3 text-left cursor-pointer focus:outline-none hover:bg-bg-secondary transition-colors"
+                    >
+                      <div className="grid min-w-0 flex-1 grid-cols-[8.5rem_minmax(0,1fr)_46px_20px] items-center gap-2">
+                        <span className="font-mono text-left text-[10px] whitespace-nowrap text-text-secondary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
+                        <div className="h-mood-wrap flex min-w-0 items-center gap-2">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: moodDotColor(mood) }} />
+                          <span className="truncate text-xs text-text-secondary">{mood || 'No mood logged'}</span>
+                        </div>
+                        <span className={`text-right font-mono text-sm ${log.health?.weight ? 'text-text-primary' : 'text-text-tertiary'}`}>{log.health?.weight ? log.health.weight : '—'}</span>
+                        <span className="text-right text-sm text-text-secondary">{isWorkoutDay(log.health) ? (log.health?.workoutCategory?.toLowerCase().includes('light') ? '◎' : '●') : '—'}</span>
+                      </div>
+                      <div className="ml-2 flex shrink-0 items-center gap-2">
+                        {goals.length ? <span className="font-mono text-[9px] text-text-tertiary">{completedGoals}/{goals.length}</span> : null}
+                        <button
+                          type="button"
+                          onClick={event => { event.stopPropagation(); navigate(`/?date=${log.date}`); }}
+                          className="text-[9px] uppercase tracking-widest text-text-tertiary hover:text-accent-amber"
+                        >
+                          Edit
+                        </button>
+                        <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
+                      </div>
                     </div>
-                  )}
 
-                  {log.mood && log.mood.mood && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-teal uppercase tracking-[2px] mb-2 font-semibold">Mood</h3>
-                      <div><strong className="text-text-primary font-medium">Feeling:</strong> {log.mood.mood}</div>
-                    </div>
-                  )}
+                    {expandedDate === log.date && (
+                      <div className="px-5 pb-5 space-y-3 border-t-[0.5px] border-border-subtle pt-4">
+                        {goals.length > 0 && (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Goals</h3>
+                            <ul className="space-y-2">
+                              {goals.map((goal: any, i: number) => {
+                                const text = typeof goal === 'string' ? goal : goal.text;
+                                const done = typeof goal !== 'string' && goal.done;
+                                return <li key={i} className={`text-sm ${done ? 'line-through text-text-tertiary' : 'text-text-secondary'}`}>{done ? '✓ ' : '○ '}{text}</li>;
+                              })}
+                            </ul>
+                          </section>
+                        )}
 
-                  {log.health && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-teal uppercase tracking-[2px] mb-2 font-semibold">Health</h3>
-                      {log.health.weight ? <div><strong className="text-text-primary font-medium">Weight:</strong> {log.health.weight} kg</div> : null}
-                      {log.health.workoutCategory ? <div><strong className="text-text-primary font-medium">Workout:</strong> {log.health.workoutCategory}</div> : null}
-                      {log.health.workoutNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Notes:</strong><br/>{log.health.workoutNotes}</div> : null}
-                      {log.health.foodHealthy?.length > 0 ? <div><strong className="text-text-primary font-medium">Healthy Food:</strong> {log.health.foodHealthy.join(', ')}</div> : null}
-                      {log.health.foodJunk?.length > 0 ? <div><strong className="text-text-primary font-medium">Junk Food:</strong> {log.health.foodJunk.join(', ')}</div> : null}
-                      {log.health.foodOut?.length > 0 ? <div><strong className="text-text-primary font-medium">Eating Out:</strong> {log.health.foodOut.join(', ')}</div> : null}
-                    </div>
-                  )}
-                  
-                  {log.study && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-amber uppercase tracking-[2px] mb-2 font-semibold">Study</h3>
-                      {log.study.practiceHours ? <div><strong className="text-text-primary font-medium">Practice Hours:</strong> {log.study.practiceHours}</div> : null}
-                      {log.study.schoolNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">School Notes:</strong><br/>{log.study.schoolNotes}</div> : null}
-                      {log.study.learningNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Learning Notes:</strong><br/>{log.study.learningNotes}</div> : null}
-                    </div>
-                  )}
+                        {(mood || log.health?.weight) && (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Mood & Weight</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              {mood && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Mood</div><div className="mt-1 text-sm text-text-primary">{mood}</div></div>}
+                              {log.health?.weight ? <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Weight</div><div className="mt-1 font-serif text-2xl text-text-primary">{log.health.weight}<span className="ml-1 text-xs font-sans text-text-tertiary">kg</span></div></div> : null}
+                            </div>
+                          </section>
+                        )}
 
-                  {log.work && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-red uppercase tracking-[2px] mb-2 font-semibold">Work</h3>
-                      {log.work.workNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Work Notes:</strong><br/>{log.work.workNotes}</div> : null}
-                      {log.work.networkNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Network Notes:</strong><br/>{log.work.networkNotes}</div> : null}
-                    </div>
-                  )}
-                  
-                  {!log.health && !log.study && !log.work && !log.mood && !log.daily && (
-                    <div className="text-text-tertiary text-xs italic">No specific details logged for this date.</div>
-                  )}
-                </div>
-              )}
-            </div>
-                  ))}
+                        {log.health && (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Health & Workout</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              {(['sleep', 'water', 'steps', 'screen'] as const).map(metric => {
+                                const value = metricBucket(log.health, metric);
+                                const labels = { sleep: 'Sleep', water: 'Water', steps: 'Steps', screen: 'Screen time' };
+                                return value ? <div key={metric}><div className="text-[9px] uppercase tracking-widest text-text-tertiary">{labels[metric]}</div><div className="mt-1 text-sm text-text-primary">{value}</div></div> : null;
+                              })}
+                            </div>
+                            {isWorkoutDay(log.health) && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Workout</div><div className="mt-1 text-sm text-text-primary">{Array.isArray(log.health.workoutCategories) && log.health.workoutCategories.length ? log.health.workoutCategories.join(' · ') : log.health.workoutCategory}</div></div>}
+                            {log.health.workoutNotes && <div className="whitespace-pre-wrap text-sm text-text-secondary"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Workout notes</div>{log.health.workoutNotes}</div>}
+                            {log.health.exercises?.length > 0 && (
+                              <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Structured exercises</div>{log.health.exercises.map((exercise: any, i: number) => <div key={i} className="flex justify-between gap-3 rounded-xl bg-bg-secondary px-3 py-2 text-xs"><span className="text-text-primary">{exercise.name}</span><span className="text-text-tertiary">{exercise.weight}kg · {exercise.sets}×{exercise.reps}</span></div>)}</div>
+                            )}
+                          </section>
+                        )}
+
+                        {log.health && (log.health.foodHome?.length || log.health.foodOutside?.length || log.health.foodHealthyOutside?.length || log.health.foodHealthy?.length || log.health.foodJunk?.length || log.health.foodOut?.length) ? (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Nutrition</h3>
+                            {log.health.foodHome?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Home-cooked · </span>{log.health.foodHome.join(', ')}</div>}
+                            {log.health.foodOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Outside · </span>{log.health.foodOutside.join(', ')}</div>}
+                            {log.health.foodHealthyOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Healthy outside · </span>{log.health.foodHealthyOutside.join(', ')}</div>}
+                            {log.health.foodHealthy?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Healthy · </span>{log.health.foodHealthy.join(', ')}</div>}
+                            {log.health.foodJunk?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Junk · </span>{log.health.foodJunk.join(', ')}</div>}
+                            {log.health.foodOut?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Out · </span>{log.health.foodOut.join(', ')}</div>}
+                          </section>
+                        ) : null}
+
+                        {(log.study || dayLearningItems.length > 0) && (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Study</h3>
+                            {log.study?.practiceHours ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Legacy practice hours · </span>{log.study.practiceHours}</div> : null}
+                            {log.study?.studyEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.study.studyEnjoyment}/5</div> : null}
+                            {log.study?.schoolNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">School notes</div>{log.study.schoolNotes}</div>}
+                            {log.study?.learningNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Learning notes</div>{log.study.learningNotes}</div>}
+                            {dayLearningItems.length > 0 && <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Learning items updated</div>{dayLearningItems.map(item => <div key={item.id} className="rounded-xl bg-bg-secondary px-3 py-3"><div className="flex justify-between gap-3"><span className="text-sm text-text-primary">{item.title}</span><span className="text-[10px] text-accent-amber">{item.enjoyment || 0}/5</span></div><div className="mt-1 text-[9px] uppercase tracking-widest text-text-tertiary">{item.category} · {item.status}</div>{item.progressTotal ? <div className="mt-2 text-xs text-text-secondary">{item.progressCurrent ?? 0}/{item.progressTotal} {item.unit} · {Math.min(100, Math.round(((item.progressCurrent ?? 0) / item.progressTotal) * 100))}%</div> : null}{item.notes ? <div className="mt-2 whitespace-pre-wrap text-xs text-text-secondary">{item.notes}</div> : null}</div>)}</div>}
+                          </section>
+                        )}
+
+                        {(log.work || dayWorkItems.length > 0) && (
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Work</h3>
+                            {log.work?.workEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.work.workEnjoyment}/5</div> : null}
+                            {log.work?.workNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Work notes</div>{log.work.workNotes}</div>}
+                            {log.work?.networkNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Networking notes</div>{log.work.networkNotes}</div>}
+                            {dayWorkItems.length > 0 && <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Work items updated</div>{dayWorkItems.map(item => <div key={item.id} className="rounded-xl bg-bg-secondary px-3 py-3"><div className="flex justify-between gap-3"><span className="text-sm text-text-primary">{item.title}</span><span className="text-[10px] text-accent-red">{item.enjoyment || 0}/5</span></div><div className="mt-1 text-[9px] uppercase tracking-widest text-text-tertiary">{item.category} · {item.status}</div>{item.notes ? <div className="mt-2 whitespace-pre-wrap text-xs text-text-secondary">{item.notes}</div> : null}</div>)}</div>}
+                          </section>
+                        )}
+
+                        {!hasDetails && <div className="text-text-tertiary text-xs italic">No specific details logged for this date.</div>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>
