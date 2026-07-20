@@ -209,21 +209,51 @@ function App() {
 
   if (!user || !token) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-bg-primary text-text-primary p-6">
-        <div className="font-serif text-4xl tracking-[10px] mb-12">LOG STATS</div>
-        <p className="text-text-secondary mb-8 text-center max-w-sm">
-          Please sign in to access your personal journals, analytics, and sync to Google Sheets.
-          <br/><br/>
-          <span className="text-xs text-accent-red font-medium">
-            Note: If sign in doesn't work, please open the app in a new tab using the button in the top right corner.
-          </span>
-        </p>
-        <button 
-          onClick={login}
-          className="px-6 py-3 bg-accent-amber text-[#1a0f07] font-sans font-semibold tracking-widest text-sm rounded-xl uppercase active:scale-95 transition-transform"
-        >
-          Sign in with Google
-        </button>
+      <div className="min-h-screen bg-bg-primary px-5 py-10 text-text-primary sm:px-6">
+        <div className="mx-auto flex min-h-[calc(100vh-5rem)] w-full max-w-md flex-col justify-center">
+          <div className="mb-10 text-center">
+            <div className="mb-4 font-mono text-[10px] tracking-[0.3em] uppercase text-accent-teal">
+              ✦ private daily intelligence
+            </div>
+            <div className="font-serif text-5xl font-light tracking-[0.22em] text-text-primary sm:text-6xl">
+              LOG STATS
+            </div>
+            <div className="mx-auto mt-5 h-px w-12 bg-accent-amber/70" />
+            <p className="mt-6 text-center text-sm leading-7 text-text-secondary">
+              A private daily tracker that turns your health, mood, workouts, study, work, and goals into insight over time.
+            </p>
+          </div>
+
+          <div className="mb-8 grid grid-cols-3 gap-2">
+            {[
+              { icon: '✦', label: 'Log', detail: 'capture the day' },
+              { icon: '≡', label: 'History', detail: 'see the pattern' },
+              { icon: '◈', label: 'Analytics', detail: 'find the signal' },
+            ].map(item => (
+              <div key={item.label} className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary px-2 py-3 text-center">
+                <div className="font-serif text-xl text-accent-amber">{item.icon}</div>
+                <div className="mt-1 font-mono text-[9px] tracking-[0.16em] uppercase text-text-primary">{item.label}</div>
+                <div className="mt-1 text-[10px] leading-tight text-text-tertiary">{item.detail}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4">
+            <button
+              onClick={login}
+              className="w-full rounded-[10px] bg-accent-amber px-6 py-3.5 font-sans text-sm font-semibold tracking-[0.22em] text-[#1a0f07] uppercase transition-transform active:scale-[0.98]"
+            >
+              Sign in with Google
+            </button>
+            <p className="mt-3 text-center text-[10px] leading-relaxed text-text-tertiary">
+              If sign-in does not open, try launching the app in a new browser tab.
+            </p>
+          </div>
+
+          <div className="mt-8 text-center font-mono text-[9px] tracking-[0.18em] uppercase text-text-tertiary">
+            your data · your pace · your perspective
+          </div>
+        </div>
       </div>
     );
   }
