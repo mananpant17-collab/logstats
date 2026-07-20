@@ -1,5 +1,16 @@
 # Log Stats
 
+## Contents
+
+- [TL;DR](#tldr)
+- [Quick start](#quick-start)
+- [How to use the app](#how-to-use-the-app)
+- [Architecture and project structure](#architecture-and-project-structure)
+- [Google Sheets](#google-sheets)
+- [Privacy and security](#privacy-and-security)
+- [Deployment](#deployment)
+- [Maintenance and extending the app](#maintenance-and-extending-the-app)
+
 ## TL;DR
 
 Log Stats is a private, Google-authenticated, mobile-first daily tracker for health, workouts, mood, goals, nutrition, study, and work, with an analytics dashboard. It is built with React 19, TypeScript, Vite, Tailwind CSS v4, Firebase Authentication and Firestore, Recharts, and optional Google Sheets export. Data is stored per authenticated user and is private to that user.
@@ -10,7 +21,7 @@ Log Stats is a private, Google-authenticated, mobile-first daily tracker for hea
 
 - Node.js 20.19+ (or Node.js 22.12+)
 - npm
-- A Firebase web application with Google Authentication enabled
+- A Firebase web app with Google Authentication enabled
 
 ### Install and configure
 
@@ -30,12 +41,12 @@ VITE_FIREBASE_MESSAGING_SENDER_ID=
 VITE_FIREBASE_APP_ID=
 ```
 
-Add `localhost` (and the eventual deployment domain) to Firebase Authentication's authorized domains. Google sign-in requests the non-sensitive `drive.file` scope so the app can create, append to, and export its own spreadsheet.
+Add `localhost` to Firebase Authentication's authorized domains for local development. Google sign-in requests the non-sensitive `drive.file` scope, which lets the app create and work with its own spreadsheet without the sensitive Google Sheets scope or the associated unverified-app warning.
 
-### Run
+### Run locally
 
 ```bash
-npm run dev       # Vite development server, port 3000
+npm run dev       # Vite development server on port 3000
 npm run build     # Production build in dist/
 npm run preview   # Preview the production build
 ```
@@ -79,6 +90,7 @@ src/
   lib/sheets.ts           Google Sheets creation, append, and export helpers
 index.css                 Design tokens and typography
 firestore.rules           Per-user Firestore access rules
+firebase.json             Firebase Hosting and Firestore deployment config
 ```
 
 `index.css` defines the `#080a0c` dark palette, `#c8925a` amber and `#5a9e8f` teal accents, and the Cormorant Garamond, Outfit, and Space Mono fonts.
@@ -100,7 +112,41 @@ The key workout helper is `isWorkoutDay(log)`. When a numeric `workoutDone` fiel
 
 Google Sheets is an optional export and append integration. Each user gets an auto-created spreadsheet named `Log Stats – Comprehensive Tracker`. The established flattened layout is ten columns, `A:J`. Export All is available in History, and the existing Log saves append their established rows.
 
+Authentication uses the non-sensitive `drive.file` scope. It permits the app to create and access the spreadsheet it creates, without requesting broad access to the user's Drive or all spreadsheets. This avoids the Google "unverified app" warning associated with sensitive scopes.
+
 Firestore remains the source of truth. Newer fields such as lifestyle buckets, structured exercises, learning and work items, enjoyment ratings, and goal done-state are not fully mirrored to Sheets. The Sheets payload and `src/lib/sheets.ts` should be treated as compatibility-sensitive code.
+
+## Privacy and security
+
+- `.env` is gitignored and must never be committed.
+- Firebase web API keys are public by design because they are embedded in the client; they are not secrets.
+- Actual data protection comes from `firestore.rules`, which isolates each authenticated user to their own `users/{uid}` tree.
+- Keep private credentials, service-account keys, OAuth client secrets, and other secrets out of the repository.
+- Do not weaken the per-user rules when adding collections or features.
+
+## Deployment
+
+Firebase Hosting is the deployment path for this repository. The configured Hosting site is `logstats`, producing the live URL:
+
+https://logstats.web.app
+
+For a fresh machine or Firebase account, run the one-time setup:
+
+```bash
+firebase login
+firebase hosting:sites:create logstats
+```
+
+Then deploy from the repository root:
+
+```bash
+git pull
+npm install
+npm run build
+firebase deploy
+```
+
+`firebase.json` serves the `dist/` directory, rewrites client-side routes to `index.html`, disables caching for `sw.js`, and points Firebase at `firestore.rules`. Therefore `firebase deploy` publishes both the Hosting build and the Firestore security rules. Add the deployment domain to Firebase Authentication's authorized domains if it is not already listed.
 
 ## Maintenance and extending the app
 
@@ -124,8 +170,8 @@ Add data derivation near the existing memoized analytics values in `Analytics.ts
 
 Do not infer a workout from arbitrary workout text or notes. Use `isWorkoutDay(log)`. Imported spreadsheet rows use the numeric Done column as `workoutDone`, and that numeric value takes precedence over category text.
 
-### Configuration and deployment
+### Configuration changes
 
-`.env` is gitignored. Firebase configuration changes are local environment changes and must be applied manually; they do not arrive through `git pull`. Build the static site with `npm run build`; the resulting `dist/` directory works with Vercel or Firebase Hosting. Set the same `VITE_FIREBASE_*` variables in the deployment environment and add the deployment domain to Firebase Authentication's authorized domains.
+Firebase configuration values are local environment settings. `.env` changes must be applied manually; they do not arrive through `git pull`. Keep deployment environment variables aligned with `.env.example`.
 
-If a new Firestore collection is added, update `firestore.rules` and confirm that its path remains scoped to the authenticated user's `users/{uid}` document.
+If a new Firestore collection is added, update `firestore.rules` and confirm that its path remains scoped to the authenticated user's `users/{uid}` document before deploying.
