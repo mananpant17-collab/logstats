@@ -2,7 +2,6 @@
   "name": "log-stats",
   "version": "1.0.0",
   "description": "Log Stats tracker and analyzer",
-  "main": "server.js",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,9 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "d3": "^7.9.0",
     "date-fns": "^4.4.0",
-    "express": "^4.19.2",
     "firebase": "^12.16.0",
     "lucide-react": "^1.25.0",
     "react": "^19.2.7",
