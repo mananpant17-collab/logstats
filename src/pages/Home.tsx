@@ -601,7 +601,16 @@ export default function Home() {
           <div className="flex items-center justify-center gap-7">
             <button type="button" onClick={() => stepWeight(-0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">−</button>
             <div className="min-w-[148px]">
-              <div className="font-mono text-[46px] font-normal leading-none text-text-primary border-b border-border-strong pb-1">{weight || '––.–'}</div>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                aria-label="Weight in kilograms"
+                value={weight}
+                onChange={event => setWeight(event.target.value)}
+                placeholder="––.–"
+                className="w-36 appearance-none border-b border-border-strong bg-transparent pb-1 text-center font-mono text-[46px] font-normal leading-none text-text-primary outline-none placeholder:text-text-tertiary"
+              />
               <div className="mt-2 text-[10px] tracking-[0.18em] uppercase text-text-tertiary">kilograms</div>
             </div>
             <button type="button" onClick={() => stepWeight(0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">+</button>
