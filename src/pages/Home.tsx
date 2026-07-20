@@ -609,7 +609,7 @@ export default function Home() {
                 value={weight}
                 onChange={event => setWeight(event.target.value)}
                 placeholder="––.–"
-                className="w-36 appearance-none border-b border-border-strong bg-transparent pb-1 text-center font-mono text-[46px] font-normal leading-none text-text-primary outline-none placeholder:text-text-tertiary"
+                className="w-36 appearance-none [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none border-b border-border-strong bg-transparent pb-1 text-center font-mono text-[46px] font-normal leading-none text-text-primary outline-none placeholder:text-text-tertiary"
               />
               <div className="mt-2 text-[10px] tracking-[0.18em] uppercase text-text-tertiary">kilograms</div>
             </div>
