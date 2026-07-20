@@ -206,7 +206,11 @@ export default function Home() {
       if (!confirmed) return;
       setSavingGoals(true);
       await setDoc(doc(db, 'users', auth.currentUser.uid, 'daily', dateStr), { date: dateStr, goals }, { merge: true });
-      await appendToSheet('Sheet1!A:J', [[dateStr, goals.map(g => g.text).join(' | '), '', '', '', '', '', '', '', '']]);
+      try {
+        await appendToSheet('Sheet1!A:J', [[dateStr, goals.map(g => g.text).join(' | '), '', '', '', '', '', '', '', '']]);
+      } catch (sheetError: any) {
+        console.warn('Google Sheets sync skipped:', sheetError.message);
+      }
     } catch (err: any) {
       console.warn("Save error:", err.message);
       alert(`Error saving: ${err.message}`);
@@ -261,20 +265,24 @@ export default function Home() {
         date: dateStr, mood, updatedAt: new Date()
       }, { merge: true });
 
-      await appendToSheet('Sheet1!A:J', [
-        [
-          dateStr,
-          '',
-          mood,
-          weight,
-          workoutCategories.join(', '),
-          workoutNotes,
-          `Home: ${foodHome}\nOutside: ${foodOutside}\nHealthy outside: ${foodHealthyOutside}`,
-          '',
-          '',
-          ''
-        ]
-      ]);
+      try {
+        await appendToSheet('Sheet1!A:J', [
+          [
+            dateStr,
+            '',
+            mood,
+            weight,
+            workoutCategories.join(', '),
+            workoutNotes,
+            `Home: ${foodHome}\nOutside: ${foodOutside}\nHealthy outside: ${foodHealthyOutside}`,
+            '',
+            '',
+            ''
+          ]
+        ]);
+      } catch (sheetError: any) {
+        console.warn('Google Sheets sync skipped:', sheetError.message);
+      }
     } catch (err: any) {
       console.warn("Save error:", err.message);
       alert(`Error saving: ${err.message}`);
@@ -299,20 +307,24 @@ export default function Home() {
         updatedAt: new Date()
       }, { merge: true });
 
-      await appendToSheet('Sheet1!A:J', [
-        [
-          dateStr,
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          practiceHours,
-          `School: ${schoolNotes}\nLearning: ${learningNotes}`,
-          ''
-        ]
-      ]);
+      try {
+        await appendToSheet('Sheet1!A:J', [
+          [
+            dateStr,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            practiceHours,
+            `School: ${schoolNotes}\nLearning: ${learningNotes}`,
+            ''
+          ]
+        ]);
+      } catch (sheetError: any) {
+        console.warn('Google Sheets sync skipped:', sheetError.message);
+      }
     } catch (err: any) {
       console.warn("Save error:", err.message);
       alert(`Error saving: ${err.message}`);
@@ -336,20 +348,24 @@ export default function Home() {
         updatedAt: new Date()
       }, { merge: true });
 
-      await appendToSheet('Sheet1!A:J', [
-        [
-          dateStr,
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          '',
-          `Work: ${workNotes}\nNet: ${networkNotes}`
-        ]
-      ]);
+      try {
+        await appendToSheet('Sheet1!A:J', [
+          [
+            dateStr,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            `Work: ${workNotes}\nNet: ${networkNotes}`
+          ]
+        ]);
+      } catch (sheetError: any) {
+        console.warn('Google Sheets sync skipped:', sheetError.message);
+      }
     } catch (err: any) {
       console.warn("Save error:", err.message);
       alert(`Error saving: ${err.message}`);

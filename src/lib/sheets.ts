@@ -1,4 +1,4 @@
-import { getAccessToken, db, auth } from '../App';
+import { getAccessToken, setAccessToken, db, auth } from '../App';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 export async function getUserSpreadsheetId(): Promise<string | null> {
@@ -100,7 +100,17 @@ export async function appendToSheet(range: string, values: any[][]) {
       const errorData = await response.json();
       console.error('Google Sheets API Error:', errorData);
       
-      if (response.status === 401) {
+      const errorReasons = errorData.error?.errors?.map((error: { reason?: string }) => error.reason) || [];
+      const isInsufficientScope = response.status === 401
+        || (response.status === 403 && (
+          errorReasons.includes('insufficientPermissions')
+          || errorReasons.includes('insufficientScopes')
+          || errorData.error?.message?.toLowerCase().includes('insufficient authentication scopes')
+          || errorData.error?.message?.toLowerCase().includes('insufficient scope')
+        ));
+
+      if (isInsufficientScope) {
+        setAccessToken(null);
         throw new Error('Google authentication expired. Please sign out and sign in again.');
       } else if (response.status === 403 || response.status === 404) {
         // If they deleted it or lost access, let's remove it from firestore so they can make a new one next time
