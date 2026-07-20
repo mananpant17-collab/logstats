@@ -438,18 +438,18 @@ export default function Home() {
     setter: (next: string) => void,
     options: string[],
   ) => (
-    <div className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3.5 space-y-3">
-      <label className="block text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{label}</label>
+    <div className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-primary/40 p-3.5 space-y-3">
+      <label className="block text-[10px] tracking-[0.2em] uppercase text-text-tertiary">{label}</label>
       <div className="grid grid-cols-1 gap-1.5">
         {options.map(option => (
           <button
             key={option}
             type="button"
             onClick={() => setter(value === option ? '' : option)}
-            className={`rounded-xl border px-2 py-2 text-[10px] tracking-wide transition-colors ${
+            className={`rounded-lg border-[0.5px] px-2 py-2 text-[10px] tracking-wide transition-colors ${
               value === option
                 ? 'border-accent-teal bg-accent-teal/10 text-accent-teal'
-                : 'border-bg-tertiary text-text-secondary hover:border-accent-teal/60'
+                : 'border-border-subtle text-text-secondary hover:border-accent-teal/60'
             }`}
           >
             {option}
@@ -490,17 +490,17 @@ export default function Home() {
   });
 
   return (
-    <div className="p-5 sm:p-6 pb-24 max-w-xl mx-auto space-y-8 sm:space-y-12">
-      <div className="text-center space-y-3 mb-10">
-        <h1 className="font-serif text-6xl font-light leading-none text-text-primary">{format(date, 'dd')}</h1>
-        <div className="text-[10px] text-text-secondary tracking-[0.35em] uppercase">
+    <div className="p-6 pb-24 max-w-xl mx-auto space-y-8">
+      <div className="text-center space-y-1 mb-8">
+        <h1 className="font-serif text-[60px] font-light leading-none text-text-primary">{format(date, 'dd')}</h1>
+        <div className="text-[11px] text-text-secondary tracking-[0.25em] uppercase">
           {format(date, 'MMMM yyyy')} • {dayName}
         </div>
       </div>
 
       {/* GOALS */}
-      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-6">
-        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-text-primary border-b border-bg-tertiary pb-4">Today's Goals</h2>
+      <section className="bg-bg-secondary p-4 rounded-[10px] border-[0.5px] border-border-subtle space-y-5">
+        <h2 className="text-[10px] tracking-[0.25em] uppercase text-text-tertiary border-b-[0.5px] border-border-subtle pb-3">Today's Goals</h2>
         <div className="space-y-3">
           {goals.map((goal, i) => (
             <div key={i} className="flex items-center gap-3">
@@ -515,7 +515,7 @@ export default function Home() {
                 value={goal.text}
                 onChange={(e) => handleGoalChange(i, e.target.value)}
                 placeholder="Set a goal..."
-                className={`flex-1 bg-bg-primary border border-bg-tertiary rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-amber transition-colors ${goal.done ? 'line-through text-text-tertiary' : ''}`}
+                className={`flex-1 bg-bg-primary border-[0.5px] border-border-subtle rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-accent-amber transition-colors ${goal.done ? 'line-through text-text-tertiary' : ''}`}
               />
             </div>
           ))}
@@ -529,46 +529,46 @@ export default function Home() {
           <button
             onClick={saveGoals}
             disabled={savingGoals}
-          className="w-full mt-5 py-3.5 bg-bg-tertiary text-text-primary font-semibold tracking-[0.2em] text-[10px] rounded-xl uppercase active:scale-95 transition-transform disabled:opacity-50 hover:bg-bg-tertiary/80"
+            className="w-full mt-4 py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-[10px] uppercase active:scale-95 transition-transform disabled:opacity-50"
         >
           {savingGoals ? 'Saving...' : 'Save Goals'}
         </button>
       </section>
 
       {/* HEALTH & MOOD */}
-      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-9">
-        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-teal border-b border-bg-tertiary pb-4">Health & Mood</h2>
+      <section className="bg-bg-secondary p-4 rounded-[10px] border-[0.5px] border-border-subtle space-y-7">
+        <h2 className="text-[10px] tracking-[0.25em] uppercase text-accent-amber border-b-[0.5px] border-border-subtle pb-3">Health & Mood</h2>
         
         <div className="space-y-3">
           <div className="flex items-end justify-between gap-3">
-            <h3 className="text-[10px] tracking-[0.2em] uppercase text-text-secondary">Mood Check-in</h3>
+            <h3 className="text-[10px] tracking-[0.25em] uppercase text-text-tertiary">Mood Check-in</h3>
             <span className="text-[9px] tracking-wide text-text-tertiary">Tap again to deselect</span>
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-2 gap-2">
             {MOODS.map((m) => (
               <button
                 key={m.key}
                 onClick={() => setMood(m.key === mood ? '' : m.key)}
-                className={`min-h-[76px] rounded-xl border transition-all flex flex-col items-center justify-center gap-1 ${
+                className={`min-h-[74px] last:col-span-2 rounded-[10px] border-[0.5px] transition-all flex flex-col items-center justify-center gap-1 ${
                   mood === m.key
-                    ? 'border-accent-teal bg-accent-teal/10 text-accent-teal shadow-[0_0_0_1px_rgba(90,158,143,0.2)]'
-                    : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
+                    ? 'border-accent-amber bg-accent-amber/10 text-accent-amber'
+                    : 'border-border-subtle bg-bg-primary/40 text-text-secondary hover:border-border-strong hover:bg-bg-primary'
                 }`}
                 title={m.text}
               >
-                <span className="text-2xl leading-none">{m.emoji}</span>
-                <span className="text-[7px] tracking-[0.04em] uppercase text-center leading-tight">{m.text}</span>
+                <span className="text-[22px] leading-none">{m.emoji}</span>
+                <span className="text-[11px] text-center leading-tight">{m.text}</span>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 px-5 py-6 text-center">
-          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mb-4">Weight</label>
+        <div className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-primary/40 px-4 py-5 text-center">
+          <label className="block text-[10px] tracking-[0.25em] uppercase text-text-tertiary mb-4">Weight (kg)</label>
           <div className="flex items-center justify-center gap-7">
             <button type="button" onClick={() => stepWeight(-0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">−</button>
-            <div className="min-w-[120px]">
-              <div className="font-serif text-5xl font-light leading-none text-text-primary">{weight || '—'}</div>
+            <div className="min-w-[148px]">
+              <div className="font-mono text-[46px] font-normal leading-none text-text-primary border-b border-border-strong pb-1">{weight || '––.–'}</div>
               <div className="mt-2 text-[10px] tracking-[0.18em] uppercase text-text-tertiary">kilograms</div>
             </div>
             <button type="button" onClick={() => stepWeight(0.1)} className="w-11 h-11 rounded-full border border-bg-tertiary text-xl text-text-secondary hover:border-accent-teal hover:text-accent-teal transition-colors">+</button>
@@ -583,16 +583,16 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary">Workout Category</label>
-          <div className="grid grid-cols-4 gap-2">
+          <label className="block text-[10px] tracking-[0.25em] uppercase text-text-tertiary">Workout</label>
+          <div className="grid grid-cols-3 gap-2">
             {categories.map(cat => (
               <button
                 key={cat}
                 onClick={() => toggleWorkoutCategory(cat)}
-                className={`min-h-[52px] rounded-xl border text-[10px] tracking-[0.08em] uppercase transition-colors ${
+                className={`min-h-[52px] rounded-[10px] border-[0.5px] text-[11px] transition-colors ${
                   workoutCategories.includes(cat)
                     ? 'border-accent-teal bg-accent-teal/10 text-accent-teal' 
-                    : 'border-bg-tertiary bg-bg-primary/40 text-text-secondary hover:border-accent-teal/60 hover:bg-bg-primary'
+                    : 'border-border-subtle bg-bg-primary/40 text-text-secondary hover:border-border-strong hover:bg-bg-primary'
                 }`}
               >
                 {cat}
@@ -605,17 +605,17 @@ export default function Home() {
                 value={otherWorkout}
                 onChange={e => setOtherWorkout(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addOtherWorkout(); }}
-                className="min-w-0 flex-1 bg-bg-primary border border-bg-tertiary rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary"
+                className="min-w-0 flex-1 bg-bg-primary border-[0.5px] border-border-subtle rounded-lg px-3 py-3 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary"
                 placeholder="Custom workout · e.g. Chest and back"
               />
-              <button type="button" onClick={addOtherWorkout} className="rounded-xl border border-accent-teal/50 px-3 text-[10px] uppercase tracking-widest text-accent-teal">Add</button>
+              <button type="button" onClick={addOtherWorkout} className="rounded-lg border-[0.5px] border-accent-teal/50 px-3 text-[10px] uppercase tracking-widest text-accent-teal">Add</button>
             </div>
           ) : null}
           <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mt-5">Workout Journal</label>
           <textarea 
             value={workoutNotes}
             onChange={(e) => setWorkoutNotes(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-teal transition-colors placeholder:text-text-tertiary"
+            className="w-full bg-bg-primary border-[0.5px] border-border-subtle rounded-[10px] px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-teal transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Bench Press: 4x6 @ 60kg"
           />
           <div className="space-y-4 pt-3">
@@ -624,11 +624,11 @@ export default function Home() {
               <span className="text-[9px] text-text-tertiary">Progressive overload</span>
             </div>
             {exercises.map((exercise, i) => (
-              <div key={i} className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3 grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] gap-2.5 items-end">
+              <div key={i} className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-primary/40 p-3 grid grid-cols-2 sm:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))] gap-2.5 items-end">
                 {(['name', 'weight', 'sets', 'reps'] as const).map(field => (
                   <label key={field} className="min-w-0 space-y-1.5">
                     <span className="block text-[8px] tracking-[0.12em] uppercase text-text-tertiary">{field === 'weight' ? 'Weight kg' : field}</span>
-                    <input type={field === 'name' ? 'text' : 'number'} placeholder={field === 'name' ? 'Exercise' : field === 'weight' ? '0' : '0'} value={exercise[field]} onChange={e => setExercises(exercises.map((item, index) => index === i ? { ...item, [field]: e.target.value } : item))} className="min-w-0 w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-2.5 py-2.5 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" />
+                    <input type={field === 'name' ? 'text' : 'number'} placeholder={field === 'name' ? 'Exercise' : field === 'weight' ? '0' : '0'} value={exercise[field]} onChange={e => setExercises(exercises.map((item, index) => index === i ? { ...item, [field]: e.target.value } : item))} className="min-w-0 w-full bg-bg-secondary border-[0.5px] border-border-subtle rounded-lg px-2.5 py-2.5 text-xs focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" />
                   </label>
                 ))}
                 <button type="button" onClick={() => setExercises(exercises.filter((_, index) => index !== i))} className="col-span-2 sm:col-span-4 text-left text-[9px] uppercase tracking-[0.15em] text-text-tertiary hover:text-accent-red transition-colors">× Remove exercise</button>
@@ -640,23 +640,23 @@ export default function Home() {
 
         <div className="space-y-3">
           <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mb-2">Nutrition</label>
-          <input type="text" value={foodHome} onChange={e=>setFoodHome(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Home-cooked · e.g. Rice, eggs" />
-          <input type="text" value={foodOutside} onChange={e=>setFoodOutside(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Outside food · e.g. Pizza" />
-          <input type="text" value={foodHealthyOutside} onChange={e=>setFoodHealthyOutside(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Healthy outside · e.g. Salad bowl" />
+          <input type="text" value={foodHome} onChange={e=>setFoodHome(e.target.value)} className="w-full bg-bg-primary border-[0.5px] border-border-subtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Home-cooked · e.g. Rice, eggs" />
+          <input type="text" value={foodOutside} onChange={e=>setFoodOutside(e.target.value)} className="w-full bg-bg-primary border-[0.5px] border-border-subtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Outside food · e.g. Pizza" />
+          <input type="text" value={foodHealthyOutside} onChange={e=>setFoodHealthyOutside(e.target.value)} className="w-full bg-bg-primary border-[0.5px] border-border-subtle rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Healthy outside · e.g. Salad bowl" />
         </div>
 
         <button 
           onClick={saveHealth}
           disabled={savingHealth}
-          className="w-full py-4 bg-accent-teal text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-teal/10"
+          className="w-full py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-[10px] uppercase active:scale-95 transition-transform disabled:opacity-50"
         >
           {savingHealth ? 'Saving...' : 'Save Health & Mood'}
         </button>
       </section>
 
       {/* STUDY */}
-      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
-        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-amber border-b border-bg-tertiary pb-4">Study & Learning</h2>
+      <section className="bg-bg-secondary p-4 rounded-[10px] border-[0.5px] border-border-subtle space-y-7">
+        <h2 className="text-[10px] tracking-[0.25em] uppercase text-accent-amber border-b-[0.5px] border-border-subtle pb-3">Study & Learning</h2>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
@@ -672,7 +672,7 @@ export default function Home() {
                   ? Math.min(100, Math.round((item.progressCurrent / item.progressTotal) * 100))
                   : null;
                 return (
-                  <div key={item.id} className={`rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
+                    <div key={item.id} className={`rounded-[10px] border-[0.5px] border-border-subtle bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="text-sm text-text-primary truncate">{item.title}</div>
@@ -706,7 +706,7 @@ export default function Home() {
             </div>
           ) : <p className="text-xs text-text-tertiary">Track books, courses, topics, and skills here.</p>}
           {showLearningForm && (
-            <div className="rounded-2xl border border-accent-amber/30 bg-bg-primary/40 p-4 space-y-3">
+            <div className="rounded-[10px] border-[0.5px] border-accent-amber/30 bg-bg-primary/40 p-4 space-y-3">
               <input value={learningForm.title} onChange={e => setLearningForm({ ...learningForm, title: e.target.value })} placeholder="What are you learning?" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
               <div className="grid grid-cols-2 gap-2">
                 <select value={learningForm.category} onChange={e => setLearningForm({ ...learningForm, category: e.target.value as LearningCategory })} className="bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs text-text-secondary focus:outline-none">
@@ -753,15 +753,15 @@ export default function Home() {
         <button 
           onClick={saveStudy}
           disabled={savingStudy}
-          className="w-full py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-amber/10"
+          className="w-full py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-[10px] uppercase active:scale-95 transition-transform disabled:opacity-50"
         >
           {savingStudy ? 'Saving...' : 'Save Study Log'}
         </button>
       </section>
 
       {/* WORK */}
-      <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
-        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-red border-b border-bg-tertiary pb-4">Work</h2>
+      <section className="bg-bg-secondary p-4 rounded-[10px] border-[0.5px] border-border-subtle space-y-7">
+        <h2 className="text-[10px] tracking-[0.25em] uppercase text-accent-amber border-b-[0.5px] border-border-subtle pb-3">Work</h2>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3">
@@ -773,7 +773,7 @@ export default function Home() {
           {sortedWorkItems.length ? (
             <div className="space-y-3">
               {sortedWorkItems.map(item => (
-                <div key={item.id} className={`rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
+                    <div key={item.id} className={`rounded-[10px] border-[0.5px] border-border-subtle bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="text-sm text-text-primary truncate">{item.title}</div>
@@ -792,7 +792,7 @@ export default function Home() {
             </div>
           ) : <p className="text-xs text-text-tertiary">Track projects, tasks, and networking here.</p>}
           {showWorkForm && (
-            <div className="rounded-2xl border border-accent-red/30 bg-bg-primary/40 p-4 space-y-3">
+            <div className="rounded-[10px] border-[0.5px] border-accent-red/30 bg-bg-primary/40 p-4 space-y-3">
               <input value={workForm.title} onChange={e => setWorkForm({ ...workForm, title: e.target.value })} placeholder="What are you working on?" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-accent-red placeholder:text-text-tertiary" />
               <select value={workForm.category} onChange={e => setWorkForm({ ...workForm, category: e.target.value as WorkCategory })} className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs text-text-secondary focus:outline-none">
                 {(['Project', 'Task', 'Networking', 'Other'] as WorkCategory[]).map(category => <option key={category}>{category}</option>)}
@@ -833,7 +833,7 @@ export default function Home() {
         <button 
           onClick={saveWork}
           disabled={savingWork}
-          className="w-full py-4 bg-accent-red text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-2xl uppercase active:scale-95 transition-transform disabled:opacity-50 shadow-lg shadow-accent-red/10"
+          className="w-full py-4 bg-accent-amber text-[#1a0f07] font-semibold tracking-[0.2em] text-[10px] rounded-[10px] uppercase active:scale-95 transition-transform disabled:opacity-50"
         >
           {savingWork ? 'Saving...' : 'Save Work Log'}
         </button>

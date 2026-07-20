@@ -68,6 +68,9 @@ export function metricBucket(log: any, metric: MetricName): string {
 }
 
 export function isWorkoutDay(log: any): boolean {
+  if (typeof log?.workoutDone === 'number' && Number.isFinite(log.workoutDone)) {
+    return Boolean(log.workoutDone);
+  }
   if (Array.isArray(log?.workoutCategories) && log.workoutCategories.some((category: any) => typeof category === 'string' && category.trim())) {
     return true;
   }

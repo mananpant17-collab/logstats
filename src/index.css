@@ -4,6 +4,9 @@
   --color-bg-primary: #080a0c;
   --color-bg-secondary: #0d1117;
   --color-bg-tertiary: #141820;
+  --color-bg-elevated: #1c2232;
+  --color-border-subtle: #1e2430;
+  --color-border-strong: #2a3040;
   
   --color-text-primary: #e2dfd8;
   --color-text-secondary: #8a8a8a;
@@ -23,4 +26,5 @@ body {
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }

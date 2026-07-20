@@ -3,7 +3,7 @@ import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore'
 import { db, auth, reAuthWithGoogle } from '../App';
 import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
 import { isWorkoutDay, metricBucket } from '../lib/insights';
-import { moodEmoji } from '../lib/moods';
+import { MOODS, moodEmoji, moodScore } from '../lib/moods';
 import { format, parseISO } from 'date-fns';
 
 export default function History() {
@@ -18,6 +18,7 @@ export default function History() {
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
   const [learningItems, setLearningItems] = useState<any[]>([]);
   const [workItems, setWorkItems] = useState<any[]>([]);
+  const [filterText, setFilterText] = useState('');
 
   const fetchLogsLocal = async () => {
     if (!auth.currentUser) return;
@@ -274,6 +275,7 @@ export default function History() {
             date: dateStr,
             weight: weight,
             workoutCategory: workout.toLowerCase().startsWith('no') ? '' : workout,
+            workoutDone: Number(row[6]) || 0,
             updatedAt: new Date()
           }, { merge: true });
           operationsInBatch++;
@@ -358,11 +360,26 @@ export default function History() {
     });
   };
 
+  const moodDotColor = (mood?: string) =>
+    MOODS.find(option => moodScore(option.key) === moodScore(mood))?.color || '#4a4a4a';
+  const visibleHistory = Object.values(groupedLogs).filter((log: any) => {
+    const term = filterText.trim().toLowerCase();
+    if (!term) return true;
+    const searchable = [
+      log.date,
+      log.health?.mood,
+      log.mood?.mood,
+      log.health?.workoutCategory,
+      ...(Array.isArray(log.health?.workoutCategories) ? log.health.workoutCategories : []),
+    ].filter(Boolean).join(' ').toLowerCase();
+    return searchable.includes(term);
+  });
+
   return (
-    <div className="p-5 sm:p-6 pb-24 max-w-xl mx-auto space-y-9 text-text-primary">
+    <div className="pb-24 text-text-primary">
       {confirmDialog && (
         <div className="fixed inset-0 z-50 bg-bg-primary/80 flex items-center justify-center p-4">
-          <div className="bg-bg-secondary border border-bg-tertiary rounded-xl p-6 max-w-sm w-full space-y-6 shadow-2xl">
+          <div className="bg-bg-secondary border-[0.5px] border-border-strong rounded-[10px] p-6 max-w-sm w-full space-y-6 shadow-2xl">
             <p className="text-sm">{confirmDialog.message}</p>
             <div className="flex justify-end gap-4">
               <button onClick={() => setConfirmDialog(null)} className="text-xs uppercase tracking-widest text-text-tertiary hover:text-text-primary transition-colors px-4 py-2">
@@ -405,15 +422,15 @@ export default function History() {
         </div>
       )}
       
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-serif text-3xl tracking-widest uppercase">History</h1>
+      <div className="px-5 pt-5 pb-3 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <h1 className="font-serif text-3xl font-light tracking-[0.2em] uppercase">History</h1>
         <div className="flex items-center gap-2">
           {sheetId && (
             <a 
               href={`https://docs.google.com/spreadsheets/d/${sheetId}/edit`}
               target="_blank"
               rel="noreferrer"
-              className="text-[10px] tracking-widest uppercase px-4 py-2 bg-accent-teal/10 text-accent-teal border border-accent-teal/30 rounded-lg hover:bg-accent-teal/20 transition-colors"
+              className="text-[10px] tracking-widest uppercase px-4 py-2 bg-accent-teal/10 text-accent-teal border-[0.5px] border-accent-teal/30 rounded-lg hover:bg-accent-teal/20 transition-colors"
             >
               Open Sheet
             </a>
@@ -421,18 +438,27 @@ export default function History() {
           <button
             onClick={importLegacyData}
             disabled={importing || loading}
-            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border border-bg-tertiary rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
+            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border-[0.5px] border-border-subtle rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
           >
             {importing ? 'Importing...' : 'Import Data'}
           </button>
           <button
             onClick={exportAllToSheets}
             disabled={exporting || loading || Object.keys(groupedLogs).length === 0}
-            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border border-bg-tertiary rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
+            className="text-[10px] tracking-widest uppercase px-4 py-2 bg-bg-secondary border-[0.5px] border-border-subtle rounded-lg hover:border-text-tertiary transition-colors disabled:opacity-50"
           >
             {exporting ? 'Exporting...' : 'Export All'}
           </button>
         </div>
+      </div>
+
+      <div className="px-5 pb-4">
+        <input
+          value={filterText}
+          onChange={event => setFilterText(event.target.value)}
+          placeholder="Filter by mood, date, workout…"
+          className="w-full rounded-lg border-[0.5px] border-border-subtle bg-bg-secondary px-3.5 py-2.5 text-sm text-text-primary outline-none placeholder:text-text-tertiary focus:border-border-strong"
+        />
       </div>
 
       {loading ? (
@@ -442,7 +468,7 @@ export default function History() {
       ) : (
         <div className="space-y-4">
           {Object.entries(
-            Object.values(groupedLogs).reduce((acc: any, log: any) => {
+            visibleHistory.reduce((acc: any, log: any) => {
               const [year, month] = log.date.split('-');
               const dateObj = new Date(Number(year), Number(month) - 1, 1);
               const monthStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
@@ -451,8 +477,8 @@ export default function History() {
               return acc;
             }, {})
           ).map(([monthStr, logs]: [string, any]) => (
-            <div key={monthStr} className="space-y-4">
-              <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-text-tertiary mt-8 mb-5 border-b border-bg-tertiary pb-3">{monthStr}</h2>
+            <div key={monthStr} className="space-y-0">
+              <h2 className="px-5 pt-5 pb-3 text-[10px] font-medium tracking-[0.25em] uppercase text-text-tertiary border-b-[0.5px] border-border-subtle">{monthStr}</h2>
               {logs.map((log: any) => {
                 const mood = log.health?.mood || log.mood?.mood;
                 const goals = (log.daily?.goals || []).filter((goal: any) => (typeof goal === 'string' ? goal : goal?.text)?.trim());
@@ -461,30 +487,31 @@ export default function History() {
                 const dayWorkItems = workItems.filter(item => item.updatedDate === log.date);
                 const hasDetails = log.health || log.study || log.work || log.mood || log.daily || dayLearningItems.length || dayWorkItems.length;
                 return (
-                  <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-2xl overflow-hidden transition-all">
+                  <div key={log.date} className="bg-bg-primary border-b-[0.5px] border-border-subtle overflow-hidden transition-all">
                     <button
                       onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
-                      className="w-full p-4 sm:p-5 flex items-center gap-3 text-left focus:outline-none hover:bg-bg-primary/20 transition-colors"
+                      className="w-full px-5 py-3 flex items-center gap-3 text-left focus:outline-none hover:bg-bg-secondary transition-colors"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm font-semibold text-text-primary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
-                          <span className="text-xl leading-none">{moodEmoji(mood)}</span>
+                      <div className="grid min-w-0 flex-1 grid-cols-[74px_minmax(0,1fr)_46px_20px] items-center gap-2">
+                        <span className="font-mono text-[10px] text-text-secondary">{format(parseISO(log.date), 'EEE d MMM')}</span>
+                        <div className="h-mood-wrap flex min-w-0 items-center gap-2">
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: moodDotColor(mood) }} />
+                          <span className="truncate text-xs text-text-secondary">{mood ? moodEmoji(mood) + ' ' + mood : 'No mood logged'}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-[0.08em] uppercase text-text-tertiary">
-                          {log.health?.weight ? <span>{log.health.weight} kg</span> : null}
-                          {goals.length ? <span>{completedGoals}/{goals.length} goals</span> : null}
-                          {isWorkoutDay(log.health) ? <span>{Array.isArray(log.health.workoutCategories) && log.health.workoutCategories.length ? log.health.workoutCategories.join(' · ') : log.health.workoutCategory}</span> : null}
-                        </div>
+                        <span className={`text-right font-mono text-sm ${log.health?.weight ? 'text-text-primary' : 'text-text-tertiary'}`}>{log.health?.weight ? log.health.weight : '—'}</span>
+                        <span className="text-right text-sm text-text-secondary">{isWorkoutDay(log.health) ? (log.health?.workoutCategory?.toLowerCase().includes('light') ? '◎' : '●') : '—'}</span>
                       </div>
-                      <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
+                      <div className="ml-2 flex shrink-0 items-center gap-2">
+                        {goals.length ? <span className="font-mono text-[9px] text-text-tertiary">{completedGoals}/{goals.length}</span> : null}
+                        <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
+                      </div>
                     </button>
 
                     {expandedDate === log.date && (
-                      <div className="px-4 sm:px-5 pb-5 space-y-4 border-t border-bg-tertiary pt-5">
+                      <div className="px-5 pb-5 space-y-3 border-t-[0.5px] border-border-subtle pt-4">
                         {goals.length > 0 && (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
-                            <h3 className="text-[10px] text-accent-amber uppercase tracking-[0.2em] font-semibold">Goals</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Goals</h3>
                             <ul className="space-y-2">
                               {goals.map((goal: any, i: number) => {
                                 const text = typeof goal === 'string' ? goal : goal.text;
@@ -496,8 +523,8 @@ export default function History() {
                         )}
 
                         {(mood || log.health?.weight) && (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
-                            <h3 className="text-[10px] text-accent-teal uppercase tracking-[0.2em] font-semibold">Mood & Weight</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Mood & Weight</h3>
                             <div className="grid grid-cols-2 gap-3">
                               {mood && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Mood</div><div className="mt-1 text-sm text-text-primary">{moodEmoji(mood)} {mood}</div></div>}
                               {log.health?.weight ? <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Weight</div><div className="mt-1 font-serif text-2xl text-text-primary">{log.health.weight}<span className="ml-1 text-xs font-sans text-text-tertiary">kg</span></div></div> : null}
@@ -506,8 +533,8 @@ export default function History() {
                         )}
 
                         {log.health && (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
-                            <h3 className="text-[10px] text-accent-teal uppercase tracking-[0.2em] font-semibold">Health & Workout</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Health & Workout</h3>
                             <div className="grid grid-cols-2 gap-3">
                               {(['sleep', 'water', 'steps', 'screen'] as const).map(metric => {
                                 const value = metricBucket(log.health, metric);
@@ -524,8 +551,8 @@ export default function History() {
                         )}
 
                         {log.health && (log.health.foodHome?.length || log.health.foodOutside?.length || log.health.foodHealthyOutside?.length || log.health.foodHealthy?.length || log.health.foodJunk?.length || log.health.foodOut?.length) ? (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
-                            <h3 className="text-[10px] text-accent-green uppercase tracking-[0.2em] font-semibold">Nutrition</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Nutrition</h3>
                             {log.health.foodHome?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Home-cooked · </span>{log.health.foodHome.join(', ')}</div>}
                             {log.health.foodOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Outside · </span>{log.health.foodOutside.join(', ')}</div>}
                             {log.health.foodHealthyOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Healthy outside · </span>{log.health.foodHealthyOutside.join(', ')}</div>}
@@ -536,8 +563,8 @@ export default function History() {
                         ) : null}
 
                         {(log.study || dayLearningItems.length > 0) && (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
-                            <h3 className="text-[10px] text-accent-amber uppercase tracking-[0.2em] font-semibold">Study</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Study</h3>
                             {log.study?.practiceHours ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Legacy practice hours · </span>{log.study.practiceHours}</div> : null}
                             {log.study?.studyEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.study.studyEnjoyment}/5</div> : null}
                             {log.study?.schoolNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">School notes</div>{log.study.schoolNotes}</div>}
@@ -547,8 +574,8 @@ export default function History() {
                         )}
 
                         {(log.work || dayWorkItems.length > 0) && (
-                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
-                            <h3 className="text-[10px] text-accent-red uppercase tracking-[0.2em] font-semibold">Work</h3>
+                          <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-4">
+                            <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Work</h3>
                             {log.work?.workEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.work.workEnjoyment}/5</div> : null}
                             {log.work?.workNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Work notes</div>{log.work.workNotes}</div>}
                             {log.work?.networkNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Networking notes</div>{log.work.networkNotes}</div>}
