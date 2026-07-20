@@ -1,10 +1,55 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { db, auth } from '../App';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { appendToSheet } from '../lib/sheets';
 import { Plus } from 'lucide-react';
 import { MOODS } from '../lib/moods';
+import { metricBucket } from '../lib/insights';
+
+type LearningCategory = 'Book' | 'Course' | 'Topic' | 'Skill' | 'Other';
+type WorkCategory = 'Project' | 'Task' | 'Networking' | 'Other';
+type ItemStatus = 'In progress' | 'Completed' | 'Paused';
+
+interface LearningItem {
+  id: string;
+  title: string;
+  category: LearningCategory;
+  status: ItemStatus;
+  progressCurrent: number | null;
+  progressTotal: number | null;
+  unit: string;
+  enjoyment: number;
+  notes: string;
+  startDate: string;
+  updatedDate: string;
+}
+
+interface WorkItem {
+  id: string;
+  title: string;
+  category: WorkCategory;
+  status: ItemStatus;
+  enjoyment: number;
+  notes: string;
+  startDate: string;
+  updatedDate: string;
+}
+
+const emptyLearningForm = {
+  title: '',
+  category: 'Topic' as LearningCategory,
+  progressCurrent: '',
+  progressTotal: '',
+  unit: '',
+  notes: '',
+};
+
+const emptyWorkForm = {
+  title: '',
+  category: 'Project' as WorkCategory,
+  notes: '',
+};
 
 export default function Home() {
   const [date] = useState(new Date());
@@ -20,13 +65,13 @@ export default function Home() {
   const [weight, setWeight] = useState('');
   const [workoutCategory, setWorkoutCategory] = useState('');
   const [workoutNotes, setWorkoutNotes] = useState('');
-  const [foodHealthy, setFoodHealthy] = useState('');
-  const [foodJunk, setFoodJunk] = useState('');
-  const [foodOut, setFoodOut] = useState('');
-  const [sleepHours, setSleepHours] = useState('');
-  const [water, setWater] = useState('');
-  const [steps, setSteps] = useState('');
-  const [screenTime, setScreenTime] = useState('');
+  const [foodHome, setFoodHome] = useState('');
+  const [foodOutside, setFoodOutside] = useState('');
+  const [foodHealthyOutside, setFoodHealthyOutside] = useState('');
+  const [sleepBucket, setSleepBucket] = useState('');
+  const [waterBucket, setWaterBucket] = useState('');
+  const [stepsBucket, setStepsBucket] = useState('');
+  const [screenBucket, setScreenBucket] = useState('');
   const [exercises, setExercises] = useState<{name: string; weight: string; sets: string; reps: string}[]>([]);
   const [savingHealth, setSavingHealth] = useState(false);
 
@@ -34,12 +79,21 @@ export default function Home() {
   const [schoolNotes, setSchoolNotes] = useState('');
   const [learningNotes, setLearningNotes] = useState('');
   const [practiceHours, setPracticeHours] = useState('');
+  const [studyEnjoyment, setStudyEnjoyment] = useState('');
+  const [learningItems, setLearningItems] = useState<LearningItem[]>([]);
+  const [learningForm, setLearningForm] = useState(emptyLearningForm);
+  const [showLearningForm, setShowLearningForm] = useState(false);
+  const [savingLearningItem, setSavingLearningItem] = useState(false);
   const [savingStudy, setSavingStudy] = useState(false);
 
   // Work
   const [workNotes, setWorkNotes] = useState('');
   const [networkNotes, setNetworkNotes] = useState('');
   const [workEnjoyment, setWorkEnjoyment] = useState('');
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  const [workForm, setWorkForm] = useState(emptyWorkForm);
+  const [showWorkForm, setShowWorkForm] = useState(false);
+  const [savingWorkItem, setSavingWorkItem] = useState(false);
   const [savingWork, setSavingWork] = useState(false);
 
   useEffect(() => {
@@ -47,6 +101,12 @@ export default function Home() {
       if (!auth.currentUser) return;
       try {
         const uid = auth.currentUser.uid;
+        const [learningSnap, workItemsSnap] = await Promise.all([
+          getDocs(collection(db, 'users', uid, 'learningItems')),
+          getDocs(collection(db, 'users', uid, 'workItems')),
+        ]);
+        setLearningItems(learningSnap.docs.map(item => ({ id: item.id, ...item.data() } as LearningItem)));
+        setWorkItems(workItemsSnap.docs.map(item => ({ id: item.id, ...item.data() } as WorkItem)));
         
         // Load Goals
         const gSnap = await getDoc(doc(db, 'users', uid, 'daily', dateStr));
@@ -62,14 +122,14 @@ export default function Home() {
           setWeight(data.weight || '');
           setWorkoutCategory(data.workoutCategory || '');
           setWorkoutNotes(data.workoutNotes || '');
-          setFoodHealthy(data.foodHealthy?.join(', ') || '');
-          setFoodJunk(data.foodJunk?.join(', ') || '');
-          setFoodOut(data.foodOut?.join(', ') || '');
+          setFoodHome(data.foodHome?.join(', ') || data.foodHealthy?.join(', ') || '');
+          setFoodOutside(data.foodOutside?.join(', ') || data.foodOut?.join(', ') || data.foodJunk?.join(', ') || '');
+          setFoodHealthyOutside(data.foodHealthyOutside?.join(', ') || '');
           setMood(data.mood || '');
-          setSleepHours(data.sleepHours ?? '');
-          setWater(data.water ?? '');
-          setSteps(data.steps ?? '');
-          setScreenTime(data.screenTime ?? '');
+          setSleepBucket(metricBucket(data, 'sleep'));
+          setWaterBucket(metricBucket(data, 'water'));
+          setStepsBucket(metricBucket(data, 'steps'));
+          setScreenBucket(metricBucket(data, 'screen'));
           setExercises(Array.isArray(data.exercises) ? data.exercises.map((e: any) => ({ name: e.name || '', weight: e.weight ?? '', sets: e.sets ?? '', reps: e.reps ?? '' })) : []);
         } else {
           // Fallback if mood is in old moodLogs
@@ -86,6 +146,7 @@ export default function Home() {
           setSchoolNotes(data.schoolNotes || '');
           setLearningNotes(data.learningNotes || '');
           setPracticeHours(data.practiceHours || '');
+          setStudyEnjoyment(data.studyEnjoyment ?? '');
         }
 
         // Load Work
@@ -148,14 +209,14 @@ export default function Home() {
         weight: Number(weight) || 0,
         workoutCategory,
         workoutNotes,
-        foodHealthy: foodHealthy.split(',').map(s=>s.trim()).filter(Boolean),
-        foodJunk: foodJunk.split(',').map(s=>s.trim()).filter(Boolean),
-        foodOut: foodOut.split(',').map(s=>s.trim()).filter(Boolean),
+        foodHome: foodHome.split(',').map(s=>s.trim()).filter(Boolean),
+        foodOutside: foodOutside.split(',').map(s=>s.trim()).filter(Boolean),
+        foodHealthyOutside: foodHealthyOutside.split(',').map(s=>s.trim()).filter(Boolean),
         mood,
-        sleepHours: Number(sleepHours) || 0,
-        water: Number(water) || 0,
-        steps: Number(steps) || 0,
-        screenTime: Number(screenTime) || 0,
+        sleepBucket,
+        waterBucket,
+        stepsBucket,
+        screenBucket,
         exercises: exercises.filter(e => e.name.trim()).map(e => ({ name: e.name.trim(), weight: Number(e.weight) || 0, sets: Number(e.sets) || 0, reps: Number(e.reps) || 0 })),
         updatedAt: new Date()
       }, { merge: true });
@@ -173,7 +234,7 @@ export default function Home() {
           weight,
           workoutCategory,
           workoutNotes,
-          `Healthy: ${foodHealthy}\nJunk: ${foodJunk}\nOut: ${foodOut}`,
+          `Home: ${foodHome}\nOutside: ${foodOutside}\nHealthy outside: ${foodHealthyOutside}`,
           '',
           '',
           ''
@@ -199,6 +260,7 @@ export default function Home() {
         schoolNotes,
         learningNotes,
         practiceHours: Number(practiceHours) || 0,
+        studyEnjoyment: Number(studyEnjoyment) || 0,
         updatedAt: new Date()
       }, { merge: true });
 
@@ -261,11 +323,146 @@ export default function Home() {
     }
   };
 
+  const updateLearningItem = async (id: string, changes: Partial<LearningItem>) => {
+    if (!auth.currentUser) return;
+    const updatedDate = dateStr;
+    await updateDoc(doc(db, 'users', auth.currentUser.uid, 'learningItems', id), {
+      ...changes,
+      updatedDate,
+      updatedAt: new Date(),
+    });
+    setLearningItems(items => items.map(item => item.id === id ? { ...item, ...changes, updatedDate } : item));
+  };
+
+  const addLearningItem = async () => {
+    if (!auth.currentUser || !learningForm.title.trim()) return;
+    setSavingLearningItem(true);
+    try {
+      const payload = {
+        title: learningForm.title.trim(),
+        category: learningForm.category,
+        status: 'In progress' as ItemStatus,
+        progressCurrent: learningForm.progressCurrent === '' ? null : Number(learningForm.progressCurrent),
+        progressTotal: learningForm.progressTotal === '' ? null : Number(learningForm.progressTotal),
+        unit: learningForm.unit.trim(),
+        enjoyment: 0,
+        notes: learningForm.notes.trim(),
+        startDate: dateStr,
+        updatedDate: dateStr,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const ref = await addDoc(collection(db, 'users', auth.currentUser.uid, 'learningItems'), payload);
+      setLearningItems(items => [...items, { id: ref.id, ...payload }]);
+      setLearningForm(emptyLearningForm);
+      setShowLearningForm(false);
+    } catch (err: any) {
+      console.warn('Learning item save error:', err.message);
+      alert(`Error saving learning item: ${err.message}`);
+    } finally {
+      setSavingLearningItem(false);
+    }
+  };
+
+  const updateWorkItem = async (id: string, changes: Partial<WorkItem>) => {
+    if (!auth.currentUser) return;
+    const updatedDate = dateStr;
+    await updateDoc(doc(db, 'users', auth.currentUser.uid, 'workItems', id), {
+      ...changes,
+      updatedDate,
+      updatedAt: new Date(),
+    });
+    setWorkItems(items => items.map(item => item.id === id ? { ...item, ...changes, updatedDate } : item));
+  };
+
+  const addWorkItem = async () => {
+    if (!auth.currentUser || !workForm.title.trim()) return;
+    setSavingWorkItem(true);
+    try {
+      const payload = {
+        title: workForm.title.trim(),
+        category: workForm.category,
+        status: 'In progress' as ItemStatus,
+        enjoyment: 0,
+        notes: workForm.notes.trim(),
+        startDate: dateStr,
+        updatedDate: dateStr,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const ref = await addDoc(collection(db, 'users', auth.currentUser.uid, 'workItems'), payload);
+      setWorkItems(items => [...items, { id: ref.id, ...payload }]);
+      setWorkForm(emptyWorkForm);
+      setShowWorkForm(false);
+    } catch (err: any) {
+      console.warn('Work item save error:', err.message);
+      alert(`Error saving work item: ${err.message}`);
+    } finally {
+      setSavingWorkItem(false);
+    }
+  };
+
   const categories = ['Push', 'Pull', 'Legs', 'Core', 'Mobility', 'Running', 'Sports'];
   const stepWeight = (delta: number) => {
     const current = Number(weight) || 0;
     setWeight((Math.round((current + delta) * 10) / 10).toFixed(1));
   };
+  const bucketSelector = (
+    label: string,
+    value: string,
+    setter: (next: string) => void,
+    options: string[],
+  ) => (
+    <div className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3.5 space-y-3">
+      <label className="block text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{label}</label>
+      <div className="grid grid-cols-1 gap-1.5">
+        {options.map(option => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => setter(value === option ? '' : option)}
+            className={`rounded-xl border px-2 py-2 text-[10px] tracking-wide transition-colors ${
+              value === option
+                ? 'border-accent-teal bg-accent-teal/10 text-accent-teal'
+                : 'border-bg-tertiary text-text-secondary hover:border-accent-teal/60'
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  const enjoymentSelector = (value: number, setter: (next: string) => void, accent: string) => (
+    <div className="flex gap-1.5">
+      {[1, 2, 3, 4, 5].map(rating => (
+        <button
+          key={rating}
+          type="button"
+          onClick={() => setter(String(value === rating ? 0 : rating))}
+          className={`w-8 h-8 rounded-lg border text-[10px] transition-colors ${
+            value === rating
+              ? accent === 'accent-amber'
+                ? 'border-accent-amber bg-accent-amber/10 text-accent-amber'
+                : 'border-accent-red bg-accent-red/10 text-accent-red'
+              : 'border-bg-tertiary text-text-secondary hover:border-text-tertiary'
+          }`}
+        >
+          {rating}
+        </button>
+      ))}
+    </div>
+  );
+  const sortedLearningItems = [...learningItems].sort((a, b) => {
+    if (a.status === 'Completed' && b.status !== 'Completed') return 1;
+    if (a.status !== 'Completed' && b.status === 'Completed') return -1;
+    return a.title.localeCompare(b.title);
+  });
+  const sortedWorkItems = [...workItems].sort((a, b) => {
+    if (a.status === 'Completed' && b.status !== 'Completed') return 1;
+    if (a.status !== 'Completed' && b.status === 'Completed') return -1;
+    return a.title.localeCompare(b.title);
+  });
 
   return (
     <div className="p-5 sm:p-6 pb-24 max-w-xl mx-auto space-y-8 sm:space-y-12">
@@ -354,17 +551,10 @@ export default function Home() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {[
-            ['Sleep (hours)', sleepHours, setSleepHours],
-            ['Water (glasses)', water, setWater],
-            ['Steps', steps, setSteps],
-            ['Screen time (hours)', screenTime, setScreenTime],
-          ].map(([label, value, setter]) => (
-            <div key={label as string} className="rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-3.5 space-y-2">
-              <label className="block text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{label as string}</label>
-              <input type="number" value={value as string} onChange={e => (setter as (v: string) => void)(e.target.value)} className="w-full bg-transparent text-base text-text-primary focus:outline-none placeholder:text-text-tertiary" placeholder="—" />
-            </div>
-          ))}
+          {bucketSelector('Sleep', sleepBucket, setSleepBucket, ['<4h', '4-6h', '6h+'])}
+          {bucketSelector('Water', waterBucket, setWaterBucket, ['<1L', '1L-2L', '2L+'])}
+          {bucketSelector('Steps', stepsBucket, setStepsBucket, ['<5k', '5-10k', '10k+'])}
+          {bucketSelector('Screen time', screenBucket, setScreenBucket, ['<4h', '4-8h', '8h+'])}
         </div>
 
         <div className="space-y-4">
@@ -413,9 +603,9 @@ export default function Home() {
 
         <div className="space-y-3">
           <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary mb-2">Nutrition</label>
-          <input type="text" value={foodHealthy} onChange={e=>setFoodHealthy(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Healthy · e.g. Salad" />
-          <input type="text" value={foodJunk} onChange={e=>setFoodJunk(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Junk · e.g. Chips" />
-          <input type="text" value={foodOut} onChange={e=>setFoodOut(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Eating out · e.g. Sushi" />
+          <input type="text" value={foodHome} onChange={e=>setFoodHome(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Home-cooked · e.g. Rice, eggs" />
+          <input type="text" value={foodOutside} onChange={e=>setFoodOutside(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Outside food · e.g. Pizza" />
+          <input type="text" value={foodHealthyOutside} onChange={e=>setFoodHealthyOutside(e.target.value)} className="w-full bg-bg-primary border border-bg-tertiary rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-teal placeholder:text-text-tertiary" placeholder="Healthy outside · e.g. Salad bowl" />
         </div>
 
         <button 
@@ -430,18 +620,71 @@ export default function Home() {
       {/* STUDY */}
       <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
         <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-amber border-b border-bg-tertiary pb-4">Study & Learning</h2>
-        
-        <div className="space-y-2">
-          <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Practice Hours</label>
-          <input 
-            type="number" 
-            value={practiceHours}
-            onChange={(e) => setPracticeHours(e.target.value)}
-            className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm focus:outline-none focus:border-accent-amber transition-colors placeholder:text-text-tertiary"
-            placeholder="e.g. 2.5"
-          />
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-[10px] tracking-[0.2em] uppercase text-text-secondary">Learning Items</h3>
+            <button type="button" onClick={() => setShowLearningForm(!showLearningForm)} className="flex items-center gap-1.5 text-[10px] tracking-[0.15em] uppercase text-accent-amber hover:text-text-primary transition-colors">
+              <Plus size={14} /> Add item
+            </button>
+          </div>
+          {sortedLearningItems.length ? (
+            <div className="space-y-3">
+              {sortedLearningItems.map(item => {
+                const completion = item.progressTotal && item.progressTotal > 0 && item.progressCurrent !== null
+                  ? Math.min(100, Math.round((item.progressCurrent / item.progressTotal) * 100))
+                  : null;
+                return (
+                  <div key={item.id} className={`rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-sm text-text-primary truncate">{item.title}</div>
+                        <div className="mt-1 text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{item.category} · {item.status}</div>
+                      </div>
+                      <select value={item.status} onChange={e => updateLearningItem(item.id, { status: e.target.value as ItemStatus })} className="bg-bg-secondary border border-bg-tertiary rounded-lg px-2 py-1 text-[10px] text-text-secondary focus:outline-none">
+                        {(['In progress', 'Paused', 'Completed'] as ItemStatus[]).map(status => <option key={status}>{status}</option>)}
+                      </select>
+                    </div>
+                    {item.status !== 'Completed' && (
+                      <>
+                        <div className="flex items-center justify-between gap-3">
+                          <button type="button" onClick={() => updateLearningItem(item.id, { progressCurrent: Math.min(item.progressTotal ?? Infinity, (item.progressCurrent ?? 0) + 1) })} className="rounded-xl border border-accent-amber/40 px-3 py-2 text-[10px] tracking-wide text-accent-amber hover:bg-accent-amber/10 transition-colors">+ Progress</button>
+                          <div className="text-[10px] text-text-tertiary">{item.progressCurrent ?? 0}{item.progressTotal ? ` / ${item.progressTotal}` : ''} {item.unit}</div>
+                        </div>
+                        {completion !== null && (
+                          <div className="space-y-1">
+                            <div className="h-1.5 rounded-full bg-bg-tertiary overflow-hidden"><div className="h-full rounded-full bg-accent-amber" style={{ width: `${completion}%` }} /></div>
+                            <div className="text-right text-[9px] text-text-tertiary">{completion}% complete</div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[9px] tracking-[0.12em] uppercase text-text-tertiary">Enjoyment</span>
+                      {enjoymentSelector(item.enjoyment, value => updateLearningItem(item.id, { enjoyment: Number(value) }), 'accent-amber')}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <p className="text-xs text-text-tertiary">Track books, courses, topics, and skills here.</p>}
+          {showLearningForm && (
+            <div className="rounded-2xl border border-accent-amber/30 bg-bg-primary/40 p-4 space-y-3">
+              <input value={learningForm.title} onChange={e => setLearningForm({ ...learningForm, title: e.target.value })} placeholder="What are you learning?" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={learningForm.category} onChange={e => setLearningForm({ ...learningForm, category: e.target.value as LearningCategory })} className="bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs text-text-secondary focus:outline-none">
+                  {(['Book', 'Course', 'Topic', 'Skill', 'Other'] as LearningCategory[]).map(category => <option key={category}>{category}</option>)}
+                </select>
+                <input value={learningForm.unit} onChange={e => setLearningForm({ ...learningForm, unit: e.target.value })} placeholder="Unit · pages" className="bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
+                <input type="number" value={learningForm.progressCurrent} onChange={e => setLearningForm({ ...learningForm, progressCurrent: e.target.value })} placeholder="Current" className="bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
+                <input type="number" value={learningForm.progressTotal} onChange={e => setLearningForm({ ...learningForm, progressTotal: e.target.value })} placeholder="Total" className="bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
+              </div>
+              <textarea value={learningForm.notes} onChange={e => setLearningForm({ ...learningForm, notes: e.target.value })} placeholder="Notes (optional)" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs min-h-[70px] focus:outline-none focus:border-accent-amber placeholder:text-text-tertiary" />
+              <button type="button" onClick={addLearningItem} disabled={savingLearningItem || !learningForm.title.trim()} className="w-full py-3 rounded-xl bg-accent-amber text-[#1a0f07] text-[10px] font-semibold tracking-[0.18em] uppercase disabled:opacity-50">{savingLearningItem ? 'Saving...' : 'Save Learning Item'}</button>
+            </div>
+          )}
         </div>
-        
+
         <div className="space-y-2">
           <label className="block text-[10px] tracking-widest uppercase text-text-secondary">School / Formal Coursework</label>
           <textarea 
@@ -450,6 +693,14 @@ export default function Home() {
             className="w-full bg-bg-primary border border-bg-tertiary rounded-2xl px-4 py-4 text-sm min-h-[100px] focus:outline-none focus:border-accent-amber transition-colors placeholder:text-text-tertiary"
             placeholder="e.g. Math: Revised Chapter 4."
           />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <label className="block text-[10px] tracking-[0.2em] uppercase text-text-secondary">Did you enjoy studying?</label>
+            <span className="text-[9px] tracking-wide text-text-tertiary">Tap again to clear</span>
+          </div>
+          {enjoymentSelector(Number(studyEnjoyment), setStudyEnjoyment, 'accent-amber')}
         </div>
 
         <div className="space-y-2">
@@ -474,7 +725,47 @@ export default function Home() {
       {/* WORK */}
       <section className="bg-bg-secondary p-6 rounded-2xl border border-bg-tertiary space-y-7">
         <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-red border-b border-bg-tertiary pb-4">Work</h2>
-        
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="text-[10px] tracking-[0.2em] uppercase text-text-secondary">Work Items</h3>
+            <button type="button" onClick={() => setShowWorkForm(!showWorkForm)} className="flex items-center gap-1.5 text-[10px] tracking-[0.15em] uppercase text-accent-red hover:text-text-primary transition-colors">
+              <Plus size={14} /> Add item
+            </button>
+          </div>
+          {sortedWorkItems.length ? (
+            <div className="space-y-3">
+              {sortedWorkItems.map(item => (
+                <div key={item.id} className={`rounded-2xl border border-bg-tertiary bg-bg-primary/40 p-4 space-y-3 ${item.status === 'Completed' ? 'opacity-60' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm text-text-primary truncate">{item.title}</div>
+                      <div className="mt-1 text-[9px] tracking-[0.14em] uppercase text-text-tertiary">{item.category} · {item.status}</div>
+                    </div>
+                    <select value={item.status} onChange={e => updateWorkItem(item.id, { status: e.target.value as ItemStatus })} className="bg-bg-secondary border border-bg-tertiary rounded-lg px-2 py-1 text-[10px] text-text-secondary focus:outline-none">
+                      {(['In progress', 'Paused', 'Completed'] as ItemStatus[]).map(status => <option key={status}>{status}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[9px] tracking-[0.12em] uppercase text-text-tertiary">Enjoyment</span>
+                    {enjoymentSelector(item.enjoyment, value => updateWorkItem(item.id, { enjoyment: Number(value) }), 'accent-red')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <p className="text-xs text-text-tertiary">Track projects, tasks, and networking here.</p>}
+          {showWorkForm && (
+            <div className="rounded-2xl border border-accent-red/30 bg-bg-primary/40 p-4 space-y-3">
+              <input value={workForm.title} onChange={e => setWorkForm({ ...workForm, title: e.target.value })} placeholder="What are you working on?" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-sm focus:outline-none focus:border-accent-red placeholder:text-text-tertiary" />
+              <select value={workForm.category} onChange={e => setWorkForm({ ...workForm, category: e.target.value as WorkCategory })} className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs text-text-secondary focus:outline-none">
+                {(['Project', 'Task', 'Networking', 'Other'] as WorkCategory[]).map(category => <option key={category}>{category}</option>)}
+              </select>
+              <textarea value={workForm.notes} onChange={e => setWorkForm({ ...workForm, notes: e.target.value })} placeholder="Notes (optional)" className="w-full bg-bg-secondary border border-bg-tertiary rounded-xl px-3 py-3 text-xs min-h-[70px] focus:outline-none focus:border-accent-red placeholder:text-text-tertiary" />
+              <button type="button" onClick={addWorkItem} disabled={savingWorkItem || !workForm.title.trim()} className="w-full py-3 rounded-xl bg-accent-red text-[#1a0f07] text-[10px] font-semibold tracking-[0.18em] uppercase disabled:opacity-50">{savingWorkItem ? 'Saving...' : 'Save Work Item'}</button>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-2">
           <label className="block text-[10px] tracking-widest uppercase text-text-secondary">Did you enjoy today's work?</label>
           <div className="flex gap-2">

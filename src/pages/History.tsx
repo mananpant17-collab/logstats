@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, reAuthWithGoogle } from '../App';
 import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
-import { exerciseProgress } from '../lib/insights';
-import { Line, LineChart, ResponsiveContainer } from 'recharts';
+import { metricBucket } from '../lib/insights';
+import { moodEmoji } from '../lib/moods';
 
 export default function History() {
   const [groupedLogs, setGroupedLogs] = useState<Record<string, any>>({});
@@ -15,7 +15,8 @@ export default function History() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{message: string, onConfirm: () => void} | null>(null);
-  const exerciseData = useMemo(() => exerciseProgress(Object.values(groupedLogs).map(log => log.health).filter(Boolean)), [groupedLogs]);
+  const [learningItems, setLearningItems] = useState<any[]>([]);
+  const [workItems, setWorkItems] = useState<any[]>([]);
 
   const fetchLogsLocal = async () => {
     if (!auth.currentUser) return;
@@ -27,10 +28,15 @@ export default function History() {
       const wQ = query(collection(db, 'users', uid, 'workLogs'));
       const mQ = query(collection(db, 'users', uid, 'moodLogs'));
       const dQ = query(collection(db, 'users', uid, 'daily'));
+      const learningQ = query(collection(db, 'users', uid, 'learningItems'));
+      const workItemsQ = query(collection(db, 'users', uid, 'workItems'));
 
-      const [hSnap, sSnap, wSnap, mSnap, dSnap] = await Promise.all([
-        getDocs(hQ), getDocs(sQ), getDocs(wQ), getDocs(mQ), getDocs(dQ)
+      const [hSnap, sSnap, wSnap, mSnap, dSnap, learningSnap, workItemsSnap] = await Promise.all([
+        getDocs(hQ), getDocs(sQ), getDocs(wQ), getDocs(mQ), getDocs(dQ),
+        getDocs(learningQ), getDocs(workItemsQ),
       ]);
+      setLearningItems(learningSnap.docs.map(item => ({ id: item.id, ...item.data() })));
+      setWorkItems(workItemsSnap.docs.map(item => ({ id: item.id, ...item.data() })));
 
       const groups: Record<string, any> = {};
 
@@ -428,32 +434,6 @@ export default function History() {
         </div>
       </div>
 
-      <section className="bg-bg-secondary border border-bg-tertiary rounded-2xl p-6 space-y-5">
-        <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-accent-teal border-b border-bg-tertiary pb-4">Progressive Overload</h2>
-        {exerciseData.length ? (
-          <div className="space-y-3">
-            {exerciseData.map(exercise => (
-              <div key={exercise.name} className="flex items-center gap-3 border-b border-bg-tertiary pb-4 last:border-0 last:pb-0">
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm text-text-primary">{exercise.name}</div>
-                  <div className="text-[10px] uppercase tracking-widest text-text-tertiary">{exercise.thisMonth.toFixed(1)} kg weighted intensity this month</div>
-                </div>
-                <div className={`text-xs ${exercise.changePct !== null && exercise.changePct >= 0 ? 'text-accent-green' : 'text-accent-red'}`}>
-                  {exercise.changePct === null ? '—' : `${exercise.changePct >= 0 ? '▲' : '▼'} ${Math.abs(exercise.changePct).toFixed(0)}%`}
-                </div>
-                <div className="w-24 h-8">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={exercise.sessions}>
-                      <Line type="monotone" dataKey="intensity" stroke="#5a9e8f" strokeWidth={1.5} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <p className="text-xs text-text-tertiary">Log structured exercises on the Log tab to track progressive overload here.</p>}
-      </section>
-
       {loading ? (
         <div className="text-center text-text-tertiary py-10 animate-pulse text-xs tracking-widest uppercase">Loading...</div>
       ) : Object.keys(groupedLogs).length === 0 ? (
@@ -463,92 +443,124 @@ export default function History() {
           {Object.entries(
             Object.values(groupedLogs).reduce((acc: any, log: any) => {
               const [year, month] = log.date.split('-');
-              const dateObj = new Date(parseInt(year), parseInt(month) - 1, 1);
+              const dateObj = new Date(Number(year), Number(month) - 1, 1);
               const monthStr = dateObj.toLocaleString('default', { month: 'long', year: 'numeric' });
               if (!acc[monthStr]) acc[monthStr] = [];
               acc[monthStr].push(log);
               return acc;
             }, {})
           ).map(([monthStr, logs]: [string, any]) => (
-            <div key={monthStr} className="space-y-5">
+            <div key={monthStr} className="space-y-4">
               <h2 className="text-xs font-semibold tracking-[0.25em] uppercase text-text-tertiary mt-8 mb-5 border-b border-bg-tertiary pb-3">{monthStr}</h2>
-              {logs.map((log: any) => (
-            <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-2xl overflow-hidden transition-all">
-              <button 
-                onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
-                className="w-full p-5 flex items-center justify-between text-left focus:outline-none"
-              >
-                <span className="text-sm font-semibold tracking-widest uppercase">{log.date}</span>
-                <span className="text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
-              </button>
-              
-              {expandedDate === log.date && (
-                <div className="px-5 pb-5 space-y-7 text-sm text-text-secondary border-t border-bg-tertiary pt-5">
-                  
-                  {log.daily?.goals && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-amber uppercase tracking-[2px] mb-2 font-semibold">Goals</h3>
-                      <ul className="list-disc pl-4 space-y-1">
-                        {log.daily.goals.map((g: any, i: number) => {
-                          const text = typeof g === 'string' ? g : g.text;
-                          const done = typeof g === 'string' ? false : g.done;
-                          return text?.trim() ? (
-                            <li key={i} className={done ? 'line-through text-text-tertiary' : ''}>{text}</li>
-                          ) : null;
-                        })}
-                      </ul>
-                    </div>
-                  )}
+              {logs.map((log: any) => {
+                const mood = log.health?.mood || log.mood?.mood;
+                const goals = (log.daily?.goals || []).filter((goal: any) => (typeof goal === 'string' ? goal : goal?.text)?.trim());
+                const completedGoals = goals.filter((goal: any) => typeof goal !== 'string' && goal.done).length;
+                const dayLearningItems = learningItems.filter(item => item.updatedDate === log.date);
+                const dayWorkItems = workItems.filter(item => item.updatedDate === log.date);
+                const hasDetails = log.health || log.study || log.work || log.mood || log.daily || dayLearningItems.length || dayWorkItems.length;
+                return (
+                  <div key={log.date} className="bg-bg-secondary border border-bg-tertiary rounded-2xl overflow-hidden transition-all">
+                    <button
+                      onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
+                      className="w-full p-4 sm:p-5 flex items-center gap-3 text-left focus:outline-none hover:bg-bg-primary/20 transition-colors"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-semibold tracking-[0.14em] uppercase">{log.date}</span>
+                          <span className="text-xl leading-none">{moodEmoji(mood)}</span>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] tracking-[0.08em] uppercase text-text-tertiary">
+                          {log.health?.weight ? <span>{log.health.weight} kg</span> : null}
+                          {goals.length ? <span>{completedGoals}/{goals.length} goals</span> : null}
+                          {log.health?.workoutCategory ? <span>{log.health.workoutCategory}</span> : null}
+                        </div>
+                      </div>
+                      <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
+                    </button>
 
-                  {log.mood && log.mood.mood && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-teal uppercase tracking-[2px] mb-2 font-semibold">Mood</h3>
-                      <div><strong className="text-text-primary font-medium">Feeling:</strong> {log.mood.mood}</div>
-                    </div>
-                  )}
+                    {expandedDate === log.date && (
+                      <div className="px-4 sm:px-5 pb-5 space-y-4 border-t border-bg-tertiary pt-5">
+                        {goals.length > 0 && (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
+                            <h3 className="text-[10px] text-accent-amber uppercase tracking-[0.2em] font-semibold">Goals</h3>
+                            <ul className="space-y-2">
+                              {goals.map((goal: any, i: number) => {
+                                const text = typeof goal === 'string' ? goal : goal.text;
+                                const done = typeof goal !== 'string' && goal.done;
+                                return <li key={i} className={`text-sm ${done ? 'line-through text-text-tertiary' : 'text-text-secondary'}`}>{done ? '✓ ' : '○ '}{text}</li>;
+                              })}
+                            </ul>
+                          </section>
+                        )}
 
-                  {log.health && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-teal uppercase tracking-[2px] mb-2 font-semibold">Health</h3>
-                      {log.health.weight ? <div><strong className="text-text-primary font-medium">Weight:</strong> {log.health.weight} kg</div> : null}
-                      {log.health.sleepHours ? <div><strong className="text-text-primary font-medium">Sleep:</strong> {log.health.sleepHours} hours</div> : null}
-                      {log.health.water ? <div><strong className="text-text-primary font-medium">Water:</strong> {log.health.water} glasses</div> : null}
-                      {log.health.steps ? <div><strong className="text-text-primary font-medium">Steps:</strong> {log.health.steps}</div> : null}
-                      {log.health.screenTime ? <div><strong className="text-text-primary font-medium">Screen time:</strong> {log.health.screenTime} hours</div> : null}
-                      {log.health.workoutCategory ? <div><strong className="text-text-primary font-medium">Workout:</strong> {log.health.workoutCategory}</div> : null}
-                      {log.health.workoutNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Notes:</strong><br/>{log.health.workoutNotes}</div> : null}
-                      {log.health.foodHealthy?.length > 0 ? <div><strong className="text-text-primary font-medium">Healthy Food:</strong> {log.health.foodHealthy.join(', ')}</div> : null}
-                      {log.health.foodJunk?.length > 0 ? <div><strong className="text-text-primary font-medium">Junk Food:</strong> {log.health.foodJunk.join(', ')}</div> : null}
-                      {log.health.foodOut?.length > 0 ? <div><strong className="text-text-primary font-medium">Eating Out:</strong> {log.health.foodOut.join(', ')}</div> : null}
-                      {log.health.exercises?.length > 0 ? <div><strong className="text-text-primary font-medium">Exercises:</strong> {log.health.exercises.map((exercise: any) => `${exercise.name} ${exercise.weight}kg · ${exercise.sets}×${exercise.reps}`).join(', ')}</div> : null}
-                    </div>
-                  )}
-                  
-                  {log.study && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-amber uppercase tracking-[2px] mb-2 font-semibold">Study</h3>
-                      {log.study.practiceHours ? <div><strong className="text-text-primary font-medium">Practice Hours:</strong> {log.study.practiceHours}</div> : null}
-                      {log.study.schoolNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">School Notes:</strong><br/>{log.study.schoolNotes}</div> : null}
-                      {log.study.learningNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Learning Notes:</strong><br/>{log.study.learningNotes}</div> : null}
-                    </div>
-                  )}
+                        {(mood || log.health?.weight) && (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
+                            <h3 className="text-[10px] text-accent-teal uppercase tracking-[0.2em] font-semibold">Mood & Weight</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              {mood && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Mood</div><div className="mt-1 text-sm text-text-primary">{moodEmoji(mood)} {mood}</div></div>}
+                              {log.health?.weight ? <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Weight</div><div className="mt-1 font-serif text-2xl text-text-primary">{log.health.weight}<span className="ml-1 text-xs font-sans text-text-tertiary">kg</span></div></div> : null}
+                            </div>
+                          </section>
+                        )}
 
-                  {log.work && (
-                    <div>
-                      <h3 className="text-[10px] text-accent-red uppercase tracking-[2px] mb-2 font-semibold">Work</h3>
-                      {log.work.workNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Work Notes:</strong><br/>{log.work.workNotes}</div> : null}
-                      {log.work.networkNotes ? <div className="whitespace-pre-wrap"><strong className="text-text-primary font-medium">Network Notes:</strong><br/>{log.work.networkNotes}</div> : null}
-                      {log.work.workEnjoyment ? <div><strong className="text-text-primary font-medium">Work enjoyment:</strong> {log.work.workEnjoyment}/5</div> : null}
-                    </div>
-                  )}
-                  
-                  {!log.health && !log.study && !log.work && !log.mood && !log.daily && (
-                    <div className="text-text-tertiary text-xs italic">No specific details logged for this date.</div>
-                  )}
-                </div>
-              )}
-            </div>
-                  ))}
+                        {log.health && (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
+                            <h3 className="text-[10px] text-accent-teal uppercase tracking-[0.2em] font-semibold">Health & Workout</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                              {(['sleep', 'water', 'steps', 'screen'] as const).map(metric => {
+                                const value = metricBucket(log.health, metric);
+                                const labels = { sleep: 'Sleep', water: 'Water', steps: 'Steps', screen: 'Screen time' };
+                                return value ? <div key={metric}><div className="text-[9px] uppercase tracking-widest text-text-tertiary">{labels[metric]}</div><div className="mt-1 text-sm text-text-primary">{value}</div></div> : null;
+                              })}
+                            </div>
+                            {log.health.workoutCategory && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Workout</div><div className="mt-1 text-sm text-text-primary">{log.health.workoutCategory}</div></div>}
+                            {log.health.workoutNotes && <div className="whitespace-pre-wrap text-sm text-text-secondary"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Workout notes</div>{log.health.workoutNotes}</div>}
+                            {log.health.exercises?.length > 0 && (
+                              <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Structured exercises</div>{log.health.exercises.map((exercise: any, i: number) => <div key={i} className="flex justify-between gap-3 rounded-xl bg-bg-secondary px-3 py-2 text-xs"><span className="text-text-primary">{exercise.name}</span><span className="text-text-tertiary">{exercise.weight}kg · {exercise.sets}×{exercise.reps}</span></div>)}</div>
+                            )}
+                          </section>
+                        )}
+
+                        {log.health && (log.health.foodHome?.length || log.health.foodOutside?.length || log.health.foodHealthyOutside?.length || log.health.foodHealthy?.length || log.health.foodJunk?.length || log.health.foodOut?.length) ? (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-3">
+                            <h3 className="text-[10px] text-accent-green uppercase tracking-[0.2em] font-semibold">Nutrition</h3>
+                            {log.health.foodHome?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Home-cooked · </span>{log.health.foodHome.join(', ')}</div>}
+                            {log.health.foodOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Outside · </span>{log.health.foodOutside.join(', ')}</div>}
+                            {log.health.foodHealthyOutside?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Healthy outside · </span>{log.health.foodHealthyOutside.join(', ')}</div>}
+                            {log.health.foodHealthy?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Healthy · </span>{log.health.foodHealthy.join(', ')}</div>}
+                            {log.health.foodJunk?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Junk · </span>{log.health.foodJunk.join(', ')}</div>}
+                            {log.health.foodOut?.length > 0 && <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Out · </span>{log.health.foodOut.join(', ')}</div>}
+                          </section>
+                        ) : null}
+
+                        {(log.study || dayLearningItems.length > 0) && (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
+                            <h3 className="text-[10px] text-accent-amber uppercase tracking-[0.2em] font-semibold">Study</h3>
+                            {log.study?.practiceHours ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Legacy practice hours · </span>{log.study.practiceHours}</div> : null}
+                            {log.study?.studyEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.study.studyEnjoyment}/5</div> : null}
+                            {log.study?.schoolNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">School notes</div>{log.study.schoolNotes}</div>}
+                            {log.study?.learningNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Learning notes</div>{log.study.learningNotes}</div>}
+                            {dayLearningItems.length > 0 && <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Learning items updated</div>{dayLearningItems.map(item => <div key={item.id} className="rounded-xl bg-bg-secondary px-3 py-3"><div className="flex justify-between gap-3"><span className="text-sm text-text-primary">{item.title}</span><span className="text-[10px] text-accent-amber">{item.enjoyment || 0}/5</span></div><div className="mt-1 text-[9px] uppercase tracking-widest text-text-tertiary">{item.category} · {item.status}</div>{item.progressTotal ? <div className="mt-2 text-xs text-text-secondary">{item.progressCurrent ?? 0}/{item.progressTotal} {item.unit} · {Math.min(100, Math.round(((item.progressCurrent ?? 0) / item.progressTotal) * 100))}%</div> : null}{item.notes ? <div className="mt-2 whitespace-pre-wrap text-xs text-text-secondary">{item.notes}</div> : null}</div>)}</div>}
+                          </section>
+                        )}
+
+                        {(log.work || dayWorkItems.length > 0) && (
+                          <section className="rounded-2xl border border-bg-tertiary bg-bg-primary/30 p-4 space-y-4">
+                            <h3 className="text-[10px] text-accent-red uppercase tracking-[0.2em] font-semibold">Work</h3>
+                            {log.work?.workEnjoyment ? <div><span className="text-[9px] uppercase tracking-widest text-text-tertiary">Daily enjoyment · </span>{log.work.workEnjoyment}/5</div> : null}
+                            {log.work?.workNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Work notes</div>{log.work.workNotes}</div>}
+                            {log.work?.networkNotes && <div className="whitespace-pre-wrap"><div className="mb-1 text-[9px] uppercase tracking-widest text-text-tertiary">Networking notes</div>{log.work.networkNotes}</div>}
+                            {dayWorkItems.length > 0 && <div className="space-y-2"><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Work items updated</div>{dayWorkItems.map(item => <div key={item.id} className="rounded-xl bg-bg-secondary px-3 py-3"><div className="flex justify-between gap-3"><span className="text-sm text-text-primary">{item.title}</span><span className="text-[10px] text-accent-red">{item.enjoyment || 0}/5</span></div><div className="mt-1 text-[9px] uppercase tracking-widest text-text-tertiary">{item.category} · {item.status}</div>{item.notes ? <div className="mt-2 whitespace-pre-wrap text-xs text-text-secondary">{item.notes}</div> : null}</div>)}</div>}
+                          </section>
+                        )}
+
+                        {!hasDetails && <div className="text-text-tertiary text-xs italic">No specific details logged for this date.</div>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           ))}
         </div>

@@ -47,6 +47,26 @@ export function monthKey(dateStr: string): string {
   return typeof dateStr === 'string' ? dateStr.slice(0, 7) : '';
 }
 
+export type MetricName = 'sleep' | 'water' | 'steps' | 'screen';
+export type MetricBucket = '<4h' | '4-6h' | '6h+' | '<1L' | '1L-2L' | '2L+' | '<5k' | '5-10k' | '10k+' | '4-8h' | '8h+';
+
+export function metricBucket(log: any, metric: MetricName): string {
+  const bucketFields: Record<MetricName, string> = {
+    sleep: 'sleepBucket',
+    water: 'waterBucket',
+    steps: 'stepsBucket',
+    screen: 'screenBucket',
+  };
+  const explicit = log?.[bucketFields[metric]];
+  if (typeof explicit === 'string' && explicit) return explicit;
+  const value = finite(log?.[metric === 'sleep' ? 'sleepHours' : metric === 'water' ? 'water' : metric === 'steps' ? 'steps' : 'screenTime']);
+  if (value === null) return '';
+  if (metric === 'sleep') return value < 4 ? '<4h' : value < 6 ? '4-6h' : '6h+';
+  if (metric === 'water') return value < 1 ? '<1L' : value < 2 ? '1L-2L' : '2L+';
+  if (metric === 'steps') return value < 5000 ? '<5k' : value < 10000 ? '5-10k' : '10k+';
+  return value < 4 ? '<4h' : value < 8 ? '4-8h' : '8h+';
+}
+
 export function weightedIntensity(exs: Exercise[]): number {
   let weighted = 0;
   let volume = 0;

@@ -9,11 +9,11 @@ export interface MoodOption {
 
 // Ordered best -> worst. `key` is what gets persisted on new entries.
 export const MOODS: MoodOption[] = [
-  { key: 'energetic', emoji: '🔥', text: 'Energetic', color: '#4ade80' },
+  { key: 'energetic', emoji: '🔥', text: 'Energetic', color: '#5a9e8f' },
   { key: 'good/productive', emoji: '😊', text: 'Good/Calm Day', color: '#6aad7e' },
-  { key: 'average', emoji: '😐', text: 'Average', color: '#fbbf24' },
-  { key: 'bad/zero day', emoji: '😞', text: 'Bad/Zero Day', color: '#f87171' },
-  { key: 'awful', emoji: '😣', text: 'Awful', color: '#a78bfa' },
+  { key: 'average', emoji: '😐', text: 'Average', color: '#d4b44a' },
+  { key: 'bad/zero day', emoji: '😔', text: 'Bad/Zero Day', color: '#e07a5f' },
+  { key: 'awful', emoji: '😞', text: 'Awful', color: '#8b7ec8' },
 ];
 
 // Maps any historical or current mood string to a 1-5 score.
