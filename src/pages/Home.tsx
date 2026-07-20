@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { useSearchParams } from 'react-router-dom';
 import { db, auth } from '../App';
 import { addDoc, collection, doc, getDoc, getDocs, setDoc, updateDoc } from 'firebase/firestore';
 import { appendToSheet } from '../lib/sheets';
@@ -52,7 +53,12 @@ const emptyWorkForm = {
 };
 
 export default function Home() {
-  const [date] = useState(new Date());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const dateParam = searchParams.get('date');
+  const parsedDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)
+    ? new Date(`${dateParam}T00:00:00`)
+    : null;
+  const date = parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : new Date();
   const dateStr = format(date, 'yyyy-MM-dd');
   const dayName = format(date, 'EEEE');
 
@@ -102,6 +108,27 @@ export default function Home() {
       if (!auth.currentUser) return;
       try {
         const uid = auth.currentUser.uid;
+        setGoals([{text: '', done: false}, {text: '', done: false}, {text: '', done: false}]);
+        setMood('');
+        setWeight('');
+        setWorkoutCategories([]);
+        setOtherWorkout('');
+        setWorkoutNotes('');
+        setFoodHome('');
+        setFoodOutside('');
+        setFoodHealthyOutside('');
+        setSleepBucket('');
+        setWaterBucket('');
+        setStepsBucket('');
+        setScreenBucket('');
+        setExercises([]);
+        setSchoolNotes('');
+        setLearningNotes('');
+        setPracticeHours('');
+        setStudyEnjoyment('');
+        setWorkNotes('');
+        setNetworkNotes('');
+        setWorkEnjoyment('');
         const [learningSnap, workItemsSnap] = await Promise.all([
           getDocs(collection(db, 'users', uid, 'learningItems')),
           getDocs(collection(db, 'users', uid, 'workItems')),
@@ -496,6 +523,12 @@ export default function Home() {
         <div className="text-[11px] text-text-secondary tracking-[0.25em] uppercase">
           {format(date, 'MMMM yyyy')} • {dayName}
         </div>
+        <input
+          type="date"
+          value={dateStr}
+          onChange={event => setSearchParams({ date: event.target.value })}
+          className="mx-auto mt-3 block rounded-md border-[0.5px] border-border-subtle bg-bg-secondary px-2.5 py-1.5 font-mono text-[11px] text-text-secondary outline-none focus:border-border-strong"
+        />
       </div>
 
       {/* GOALS */}

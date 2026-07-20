@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { collection, query, getDocs, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, reAuthWithGoogle } from '../App';
 import { appendToSheet, getUserSpreadsheetId } from '../lib/sheets';
 import { isWorkoutDay, metricBucket } from '../lib/insights';
-import { MOODS, moodEmoji, moodScore } from '../lib/moods';
+import { MOODS, moodScore } from '../lib/moods';
 import { format, parseISO } from 'date-fns';
 
 export default function History() {
+  const navigate = useNavigate();
   const [groupedLogs, setGroupedLogs] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
@@ -496,13 +498,20 @@ export default function History() {
                         <span className="font-mono text-[10px] text-text-secondary">{format(parseISO(log.date), 'EEE d MMM')}</span>
                         <div className="h-mood-wrap flex min-w-0 items-center gap-2">
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: moodDotColor(mood) }} />
-                          <span className="truncate text-xs text-text-secondary">{mood ? moodEmoji(mood) + ' ' + mood : 'No mood logged'}</span>
+                          <span className="truncate text-xs text-text-secondary">{mood || 'No mood logged'}</span>
                         </div>
                         <span className={`text-right font-mono text-sm ${log.health?.weight ? 'text-text-primary' : 'text-text-tertiary'}`}>{log.health?.weight ? log.health.weight : '—'}</span>
                         <span className="text-right text-sm text-text-secondary">{isWorkoutDay(log.health) ? (log.health?.workoutCategory?.toLowerCase().includes('light') ? '◎' : '●') : '—'}</span>
                       </div>
                       <div className="ml-2 flex shrink-0 items-center gap-2">
                         {goals.length ? <span className="font-mono text-[9px] text-text-tertiary">{completedGoals}/{goals.length}</span> : null}
+                        <button
+                          type="button"
+                          onClick={event => { event.stopPropagation(); navigate(`/?date=${log.date}`); }}
+                          className="text-[9px] uppercase tracking-widest text-text-tertiary hover:text-accent-amber"
+                        >
+                          Edit
+                        </button>
                         <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
                       </div>
                     </button>
@@ -526,7 +535,7 @@ export default function History() {
                           <section className="rounded-[10px] border-[0.5px] border-border-subtle bg-bg-secondary p-4 space-y-3">
                             <h3 className="text-[10px] text-text-tertiary uppercase tracking-[0.25em]">Mood & Weight</h3>
                             <div className="grid grid-cols-2 gap-3">
-                              {mood && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Mood</div><div className="mt-1 text-sm text-text-primary">{moodEmoji(mood)} {mood}</div></div>}
+                              {mood && <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Mood</div><div className="mt-1 text-sm text-text-primary">{mood}</div></div>}
                               {log.health?.weight ? <div><div className="text-[9px] uppercase tracking-widest text-text-tertiary">Weight</div><div className="mt-1 font-serif text-2xl text-text-primary">{log.health.weight}<span className="ml-1 text-xs font-sans text-text-tertiary">kg</span></div></div> : null}
                             </div>
                           </section>
