@@ -110,18 +110,16 @@ export async function appendToSheet(range: string, values: any[][]) {
         ));
 
       if (isInsufficientScope) {
-        setAccessToken(null);
-        throw new Error('Google authentication expired. Please sign out and sign in again.');
-      } else if (response.status === 403 || response.status === 404) {
-        // If they deleted it or lost access, let's remove it from firestore so they can make a new one next time
-        if (auth.currentUser) {
-           await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'sheets'), { spreadsheetId: null }, { merge: true });
-        }
-        throw new Error('Access denied or Spreadsheet was deleted. We will create a new one for you on your next save.');
-      }
+  setAccessToken(null);
+  // A stale spreadsheetId may have been created under an older/broader
+  // OAuth scope — re-authing alone won't restore access to it. Clear it
+  // too, so the next save creates a fresh sheet under the current scope.
+  if (auth.currentUser) {
+    await setDoc(doc(db, 'users', auth.currentUser.uid, 'settings', 'sheets'), { spreadsheetId: null }, { merge: true });
+  }
+  throw new Error('Google authentication expired or was upgraded. Please sign out and sign in again — a new spreadsheet will be created automatically.');
+}
       
-      throw new Error(errorData.error?.message || 'Failed to sync to Sheets');
-    }
   } catch (err) {
     console.error('Failed to append to Sheets:', err);
     throw err;
