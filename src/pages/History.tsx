@@ -490,12 +490,21 @@ export default function History() {
                 const hasDetails = log.health || log.study || log.work || log.mood || log.daily || dayLearningItems.length || dayWorkItems.length;
                 return (
                   <div key={log.date} className="bg-bg-primary border-b-[0.5px] border-border-subtle overflow-hidden transition-all">
-                    <button
+                    <div
+                      role="button"
+                      tabIndex={0}
                       onClick={() => setExpandedDate(expandedDate === log.date ? null : log.date)}
-                      className="w-full px-5 py-3 flex items-center gap-3 text-left focus:outline-none hover:bg-bg-secondary transition-colors"
+                      onKeyDown={event => {
+                        if (event.target !== event.currentTarget) return;
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          setExpandedDate(expandedDate === log.date ? null : log.date);
+                        }
+                      }}
+                      className="w-full px-5 py-3 flex items-center gap-3 text-left cursor-pointer focus:outline-none hover:bg-bg-secondary transition-colors"
                     >
-                      <div className="grid min-w-0 flex-1 grid-cols-[74px_minmax(0,1fr)_46px_20px] items-center gap-2">
-                        <span className="font-mono text-[10px] text-text-secondary">{format(parseISO(log.date), 'EEE d MMM')}</span>
+                      <div className="grid min-w-0 flex-1 grid-cols-[max-content_minmax(0,1fr)_46px_20px] items-center gap-2">
+                        <span className="font-mono text-[10px] whitespace-nowrap text-text-secondary">{format(parseISO(log.date), 'EEEE d MMMM')}</span>
                         <div className="h-mood-wrap flex min-w-0 items-center gap-2">
                           <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: moodDotColor(mood) }} />
                           <span className="truncate text-xs text-text-secondary">{mood || 'No mood logged'}</span>
@@ -514,7 +523,7 @@ export default function History() {
                         </button>
                         <span className="text-lg text-text-tertiary">{expandedDate === log.date ? '−' : '+'}</span>
                       </div>
-                    </button>
+                    </div>
 
                     {expandedDate === log.date && (
                       <div className="px-5 pb-5 space-y-3 border-t-[0.5px] border-border-subtle pt-4">
